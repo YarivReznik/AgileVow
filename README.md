@@ -186,9 +186,11 @@ Setup for other clients, the fifteen tools and what is deliberately missing: [do
 | `--quiet` | off | Do not log each request. Server errors are still logged. |
 | `--link-kinds a,b` | none | Extra link kinds (`pr,issue,commit`). `file`, `url` and `task` always exist. |
 
-## Language
+## Language and theme
 
 The board is in English. Add `?lang=he` to the address for Hebrew (right-to-left), or use the language picker in the top bar, which remembers the choice in the browser. Without either, the browser's language decides: Hebrew if it starts with `he`, English otherwise.
+
+The page follows the system's light or dark setting. The sun/moon button in the top bar switches it and remembers the choice in the browser.
 
 ## Honest limits
 
@@ -197,7 +199,7 @@ The board is in English. Add `?lang=he` to the address for Hebrew (right-to-left
 - POSIX only (macOS, Linux). Source and attachment paths are walked with `O_NOFOLLOW`, which Windows lacks.
 - Python 3.9 or newer, standard library only. Not published on PyPI; install from a clone.
 - Done requires validation by design. There is no override. A Done card can be reopened to `backlog` with a note.
-- The board page has one light theme; there is no dark theme.
+- The sidebar lists Roadmap, Knowledge, Reports and Settings, as in the design the page follows. They are not features of this tool; clicking one says so. Home, Tasks, Boards and Mini projects work.
 - The database is a plain SQLite file, `<root>/.agilevow/agilevow.sqlite3`. Export (`GET /api/tasks/export`) is an audit archive, not a restore format, and the latest 500 events per card, plan and board are kept. Copy the database and `.agilevow/assets/` while the server is stopped to back up.
 - Nothing starts an agent or schedules a run. The manager reports; it does not act. The work-in-progress limit is advisory: the server lets one actor claim several cards, and the manager flags it.
 

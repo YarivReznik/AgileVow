@@ -73,7 +73,7 @@ function findLeaks({scope, ignore}) {
     const line = `console: ${msg.text()} (${msg.location().url})`;
     if (expectConflict && /409/.test(msg.text()) && msg.location().url.endsWith('/api/tasks/update')) conflicts.push(line); else errors.push(line); });
   await page.goto(base+'/');
-  await page.locator('#board-count').filter({hasText:'tasks'}).waitFor();
+  await pauseUntil(async()=>/tasks/.test(await page.locator('#board-count').textContent()));   // the count lives in the "..." menu, hidden until opened
   await page.locator('#actor').fill('Zoë Ünal');
   await page.locator('#actor').dispatchEvent('change');
   // Who is acting is shown as initials beside the filters and at the top right: there are no accounts, only the text typed here.
@@ -196,24 +196,105 @@ function findLeaks({scope, ignore}) {
   await page.locator('#board-filter').selectOption(''); await page.locator('#plan-filter').selectOption('');
   assert.equal(await page.locator('.task-card').count(),3);
   passed('Cross-board filtering and structured import replay prevent duplicate tasks');
-  // The sidebar lists the real boards and mini projects; clicking one is the same as choosing it in the toolbar.
-  assert.deepEqual((await page.locator('#nav-boards .nav-link-label').allInnerTexts()).sort(),['Documentation','Shared tools']);
-  await page.locator('#nav-boards .nav-link',{hasText:'Documentation'}).click();
+  // The sidebar's Boards and Mini projects open a picker; choosing there is the same as choosing in the toolbar.
+  const menuLabels = async () => page.locator('#nav-menu .menu-label').allInnerTexts();
+  await page.locator('#nav-boards').click();
+  await page.locator('#nav-menu').waitFor();
+  assert.equal(await page.locator('#nav-boards').getAttribute('aria-expanded'),'true');
+  assert.deepEqual((await menuLabels()).sort(),['All boards','Documentation','Shared tools']);
+  await page.locator('#nav-menu .menu-item',{hasText:'Documentation'}).click();
+  await page.locator('#nav-menu').waitFor({state:'hidden'});
   assert.equal(await page.locator('#board-filter').inputValue(),second.id);
   assert.equal(await page.locator('.task-card').count(),2);
   assert.equal(await page.locator('#nav-count').innerText(),'2');
-  assert.deepEqual(await page.locator('#nav-plans .nav-link-label').allInnerTexts(),['Readable release notes']); // only that board's plans
-  await page.locator('#nav-boards .nav-link.active').click(); // choosing the active board again clears it
+  await page.locator('#nav-plans').click();
+  assert.deepEqual(await menuLabels(),['All mini projects','Readable release notes']); // only that board's mini projects
+  await page.keyboard.press('Escape');
+  await page.locator('#nav-menu').waitFor({state:'hidden'});
+  assert.equal(await page.locator('#nav-plans').getAttribute('aria-expanded'),'false');
+  await page.locator('#nav-boards').click(); await page.locator('#nav-menu .menu-item',{hasText:'All boards'}).click();
   assert.equal(await page.locator('#board-filter').inputValue(),'');
-  await page.locator('#nav-plans .nav-link',{hasText:'A complete handoff'}).click();
+  await page.locator('#nav-plans').click(); await page.locator('#nav-menu .menu-item',{hasText:'A complete handoff'}).click();
   assert.equal(await page.locator('.task-card').count(),1);
   await page.locator('#nav-tasks').click();
   assert.equal(await page.locator('.task-card').count(),3);
   assert.equal(await page.locator('#plan-filter').inputValue(),'');
+  // Home clears every filter, including the text one.
+  await page.locator('#search').fill('nothing matches this');
+  assert.equal(await page.locator('.task-card').count(),0);
+  await page.locator('#nav-home').click();
+  assert.equal(await page.locator('#search').inputValue(),'');
+  assert.equal(await page.locator('.task-card').count(),3);
+  // Sections that are not features of this tool say so, instead of doing nothing.
+  for (const name of ['Roadmap','Knowledge','Reports','Settings']) {
+    await page.locator('.nav-item',{hasText:name}).click();
+    assert.match(await page.locator('#global-notice').innerText(),new RegExp(`^${name} is not part of AgileVow yet`));
+  }
   // Every status keeps its own tint: the colour is how a column is told from its neighbour at a glance.
-  const tints = await page.$$eval('.column[data-status]',columns => columns.map(c => getComputedStyle(c).backgroundColor));
+  const tints = await page.$$eval('.column[data-status]',columns => columns.map(c => getComputedStyle(c).getPropertyValue('--tint')));
   assert.equal(new Set(tints).size,tints.length,'every status column has its own tint');
-  passed('The sidebar navigates boards and mini projects like the filters do, and each status column has its own tint');
+  passed('The sidebar navigates boards and mini projects like the filters do, Home clears them, unbuilt sections say so, and each status column has its own tint');
+
+  // The "..." menu holds the rarely used controls and the count; it opens, shows them, and closes on Escape.
+  await page.locator('#more-button').click();
+  await page.locator('#more-panel').waitFor();
+  assert(await page.locator('#show-inactive').isVisible());
+  assert.match(await page.locator('#board-count').innerText(),/^\d+ tasks?/);
+  assert.equal(await page.locator('#more-button').getAttribute('aria-expanded'),'true');
+  await page.keyboard.press('Escape');
+  await page.locator('#more-panel').waitFor({state:'hidden'});
+  assert.equal(await page.locator('#more-button').getAttribute('aria-expanded'),'false');
+  passed('The "..." menu opens with the blocked-column switch and the count, and closes on Escape');
+
+  // The top search finds a mini project, a task, a board or a person and goes there.
+  const search = page.locator('#global-search'), options = page.locator('#search-results [role=option]');
+  await search.fill('handoff');
+  await options.first().waitFor();
+  assert.equal(await search.getAttribute('aria-expanded'),'true');
+  assert((await page.locator('#search-results .result-title').allInnerTexts()).includes('A complete handoff'));
+  await options.filter({hasText:'A complete handoff'}).click();
+  assert.equal(await page.locator('#plan-filter').inputValue(),planId);
+  assert.equal(await search.inputValue(),'');
+  await page.locator('#nav-home').click();
+  await search.fill('next step clear');
+  await options.first().waitFor();
+  assert.equal(await page.locator('#search-results .result-group').first().textContent(),'Tasks');   // grouped, tasks first
+  await search.press('ArrowDown'); await search.press('ArrowUp');                // wraps around to the first hit
+  await search.press('Enter');
+  await page.locator('#task-dialog[open]').waitFor();
+  assert.match(await page.locator('#task-title').innerText(),/Make the next step clear/);
+  await page.locator('[data-close="task-dialog"]').click();
+  await search.fill('zzzz-no-such-thing');
+  assert.match(await page.locator('#search-results .menu-empty').innerText(),/Nothing matches/);
+  await search.press('Escape');
+  await page.locator('#search-results').waitFor({state:'hidden'});
+  const owners = (await api('/api/tasks')).tasks.map(tk => tk.owner).filter(Boolean);
+  if (owners.length) {                                                          // a person: the text filter above the columns takes their name
+    await search.fill(owners[0].slice(0,3));
+    await page.locator('#search-results .result-item',{hasText:owners[0]}).first().click();
+    assert.equal(await page.locator('#search').inputValue(),owners[0]);
+    await page.locator('#nav-home').click();
+  }
+  passed('The top search finds mini projects, tasks and people, works from the keyboard, and says when nothing matches');
+
+  // Light and dark. The toggle switches, remembers the choice across a reload, and says what it will do next.
+  const paper = () => page.evaluate(()=>getComputedStyle(document.body).backgroundColor);
+  const lightPaper = await paper();
+  assert.equal(await page.locator('#theme-toggle').getAttribute('aria-label'),'Switch to dark theme');
+  await page.locator('#theme-toggle').click();
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');
+  assert.notEqual(await paper(),lightPaper,'dark must repaint the page');
+  assert.equal(await page.locator('#theme-toggle').getAttribute('aria-label'),'Switch to light theme');
+  await page.reload(); await page.locator('.task-card').first().waitFor();
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark','the choice is remembered');
+  await page.screenshot({path:path.join(output,'dark.png'),fullPage:true});
+  await page.locator('#theme-toggle').click();
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light');
+  assert.equal(await paper(),lightPaper);
+  // Who is acting: the profile chip at the top right takes you to the field that sets it.
+  await page.locator('#whoami').click();
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'actor');
+  passed('The theme toggle switches light and dark and remembers the choice; the profile chip leads to the acting-as field');
   // Retain useful evidence of the board and its detailed card at real viewport sizes.
   await page.screenshot({path:path.join(output,'desktop.png'),fullPage:true});
   await page.goto(base+'/?task='+taskId);

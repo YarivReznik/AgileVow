@@ -2,13 +2,13 @@
 // Task text is always rendered as text; claim tokens never enter DOM or exports.
 // Every user-visible string comes from i18n.mjs. Do not use `t` as a local name below: it is the translator.
 import { t, locale, applyDocumentLocale } from '/i18n.mjs';
-import { icon, initials, hue } from '/icons.mjs';
+import { icon, initials } from '/icons.mjs';
 
 // A count needs its own one/other strings: "1 boards" is wrong in English and the other locales differ.
 function plural(key, n) { return t(`${key}.${n === 1 ? 'one' : 'other'}`, {n}); }
 applyDocumentLocale();
 const $ = id => document.getElementById(id);
-document.querySelectorAll('[data-icon]').forEach(slot => slot.replaceChildren(icon(slot.dataset.icon, Number(slot.dataset.size) || 18)));
+document.querySelectorAll('[data-icon]').forEach(slot => slot.replaceChildren(icon(slot.dataset.icon, Number(slot.dataset.size) || 18, slot.closest('.nav-item') ? 2 : 1.8)));
 const statuses = ['backlog', 'ready', 'doing', 'review', 'post_validation', 'done', 'blocked', 'cancelled'];
 const statusKeys = {backlog:'status.backlog',ready:'status.ready',doing:'status.doing',review:'status.review',post_validation:'status.post_validation',done:'status.done',blocked:'status.blocked',cancelled:'status.cancelled'};
 const labels = Object.fromEntries(statuses.map(s => [s, t(statusKeys[s])]));
@@ -17,6 +17,7 @@ const state = {boards:[],plans:[],tasks:[],link_kinds:null,selected:null,events:
 const leaseKey = 'agilevow.leases.v1';
 const actorKey = 'agilevow.actor';
 const langKey = 'agilevow.lang';
+const themeKey = 'agilevow.theme';
 let leases = {};
 try { const saved = JSON.parse(sessionStorage.getItem(leaseKey) || '{}'); if (saved && typeof saved === 'object' && !Array.isArray(saved)) leases = saved; } catch { /* Storage can be disabled. */ }
 function rememberLease(id, lease) { if (lease) leases[id] = {token:lease,actor:actor()}; else delete leases[id]; try { sessionStorage.setItem(leaseKey, JSON.stringify(leases)); } catch { /* In-memory claims still work. */ } }
@@ -108,42 +109,63 @@ function populateProjects() {
   const value = $('plan-filter').value, board = $('board-filter').value;
   $('plan-filter').replaceChildren(new Option(t('filter.allPlans'),''), ...state.plans.filter(p => !board || p.board_id === board).map(p => new Option(p.title,p.id))); $('plan-filter').value = value;
 }
-function avatar(name) { const node = el('span', `avatar av${hue(name)}`, initials(name)); node.setAttribute('aria-hidden', 'true'); return node; }
+function avatar(name) { const node = el('span', 'avatar', initials(name)); node.setAttribute('aria-hidden', 'true'); return node; }
 function emptyAvatar() { const node = el('span', 'avatar av-none'); node.append(icon('user', 14)); node.setAttribute('aria-hidden', 'true'); return node; }
 // The actor is free text, not an account: show it as initials so who is acting is always visible.
 function syncActor() {
   const name = actor();
-  for (const id of ['whoami-avatar', 'actor-avatar']) { $(id).className = `avatar av${hue(name)}`; $(id).textContent = initials(name); }
+  $('whoami-avatar').textContent = initials(name);
   $('whoami-name').textContent = name;
 }
-function stat(iconName, key, n) {
-  const badge = el('span', `stat-icon stat-${key}`); badge.append(icon(iconName, 20));
-  return append(el('li', 'stat'), badge, append(el('span', 'stat-text'), el('strong', 'stat-value', n), el('span', 'stat-label', plural(`stat.${key}`, n))));
+// People already named on a task are offered as "acting as" suggestions; any other name can still be typed.
+function syncActorList() {
+  const names = [...new Set(state.tasks.map(tk => tk.owner).filter(Boolean))].sort();
+  $('actor-list').replaceChildren(...names.map(name => Object.assign(document.createElement('option'), {value:name})));
 }
-function navLink(label, count, active, choose) {
-  const item = el('li'), link = el('button', `nav-link${active ? ' active' : ''}`); link.type = 'button'; link.title = label;
-  if (active) link.setAttribute('aria-current', 'true');
-  const text = el('span', 'nav-link-label', label); text.dir = 'auto';
-  append(link, el('span', 'nav-dot'), text, el('span', 'nav-link-count', count));
-  link.addEventListener('click', choose); return append(item, link);
+function stat(iconName, key, n) {
+  const badge = el('span', `stat-icon stat-${key}`); badge.append(icon(iconName, 24, iconName === 'spinner' ? 2.6 : 2));
+  return append(el('li', 'stat'), badge, append(el('span', 'stat-text'), el('strong', 'stat-value', n), el('span', 'stat-label', plural(`stat.${key}`, n))));
 }
 function chooseBoard(id) { $('board-filter').value = id; $('plan-filter').value = ''; populateProjects(); renderBoard(); }
 function choosePlan(id) { $('plan-filter').value = id; renderBoard(); }
-// The sidebar lists the real boards and mini projects; clicking one is the same as using the filters in the toolbar.
-function renderNav(selectedBoard, selectedPlan) {
+
+// Popovers: one at a time, anchored to the button that opened them. Escape, a click elsewhere, a resize,
+// a scroll or choosing something closes it.
+let popover = null;
+function closePopover() { if (!popover) return; popover.panel.hidden = true; popover.anchor.setAttribute('aria-expanded', 'false'); popover = null; }
+function showPopover(panel, anchor) {
+  closePopover(); panel.hidden = false; anchor.setAttribute('aria-expanded', 'true'); popover = {panel, anchor};
+  const a = anchor.getBoundingClientRect(), rtl = document.documentElement.dir === 'rtl', beside = !!anchor.closest('.sidebar');
+  let left = beside ? (rtl ? a.left - panel.offsetWidth - 8 : a.right + 8) : (rtl ? a.left : a.right - panel.offsetWidth), top = beside ? a.top : a.bottom + 8;
+  left = Math.max(12, Math.min(left, innerWidth - panel.offsetWidth - 12)); top = Math.max(12, Math.min(top, innerHeight - panel.offsetHeight - 12));
+  panel.style.left = `${left}px`; panel.style.top = `${top}px`;
+}
+function togglePopover(panel, anchor) { if (popover?.anchor === anchor) closePopover(); else showPopover(panel, anchor); }
+function menuItem(label, count, checked, choose) {
+  const item = el('button', 'menu-item'); item.type = 'button'; item.title = label;
+  item.setAttribute('role', 'menuitemradio'); item.setAttribute('aria-checked', String(checked));
+  const text = el('span', 'menu-label', label); text.dir = 'auto';
+  append(item, text, count === null ? null : el('span', 'menu-count', count));
+  item.addEventListener('click', () => { closePopover(); choose(); }); return item;
+}
+// The sidebar lists the real boards and mini projects; choosing one is the same as using the filters in the toolbar.
+function openNavMenu(anchor, kind) {
   const open = tk => tk.status !== 'cancelled';
-  const empty = key => append(el('li', 'nav-empty'), el('span', '', t(key)));
-  const boards = state.boards.map(b => navLink(b.title, state.tasks.filter(tk => open(tk) && boardFor(tk)?.id === b.id).length, b.id === selectedBoard?.id, () => chooseBoard(b.id === selectedBoard?.id ? '' : b.id)));
-  const plans = state.plans.filter(pl => !selectedBoard || pl.board_id === selectedBoard.id).map(pl => navLink(pl.title, state.tasks.filter(tk => open(tk) && tk.plan_id === pl.id).length, pl.id === selectedPlan?.id, () => choosePlan(pl.id === selectedPlan?.id ? '' : pl.id)));
-  $('nav-boards').replaceChildren(...(boards.length ? boards : [empty('nav.noBoards')]));
-  $('nav-plans').replaceChildren(...(plans.length ? plans : [empty('nav.noPlans')]));
+  const selectedBoard = state.boards.find(b => b.id === $('board-filter').value), selectedPlan = state.plans.find(p => p.id === $('plan-filter').value);
+  const items = kind === 'boards'
+    ? [menuItem(t('filter.allBoards'), null, !selectedBoard, () => chooseBoard('')), ...state.boards.map(b => menuItem(b.title, state.tasks.filter(tk => open(tk) && boardFor(tk)?.id === b.id).length, b.id === selectedBoard?.id, () => chooseBoard(b.id)))]
+    : [menuItem(t('filter.allPlans'), null, !selectedPlan, () => choosePlan('')), ...state.plans.filter(pl => !selectedBoard || pl.board_id === selectedBoard.id).map(pl => menuItem(pl.title, state.tasks.filter(tk => open(tk) && tk.plan_id === pl.id).length, pl.id === selectedPlan?.id, () => choosePlan(pl.id)))];
+  const none = kind === 'boards' ? !state.boards.length : !state.plans.length;
+  const panel = $('nav-menu'); panel.setAttribute('aria-label', t(kind === 'boards' ? 'nav.boards' : 'nav.plans'));
+  panel.replaceChildren(...(none ? [el('div', 'menu-empty', t(kind === 'boards' ? 'nav.noBoards' : 'nav.noPlans'))] : items));
+  showPopover(panel, anchor); panel.querySelector('[aria-checked="true"]')?.focus();
 }
 function cardFooter(task) {
   const done = (task.checklist || []).filter(c => c.checked).length, total = task.acceptance?.length || 0;
   const who = el('span', task.owner ? 'owner' : 'owner unassigned');
   who.append(task.owner ? avatar(task.owner) : emptyAvatar(), el('span', 'owner-name', task.owner || t('task.unassigned')));
   const complete = total > 0 && done === total, checks = el('span', `checks${complete ? ' complete' : ''}`, t('card.checked', {done, total}));
-  checks.title = t('card.checkedTitle', {done, total}); if (complete) checks.append(icon('checkCircle', 15));
+  checks.title = t('card.checkedTitle', {done, total}); if (complete) checks.append(icon('checkFilled', 15));
   return append(el('div', 'card-bottom'), who, checks);
 }
 function renderBoard() {
@@ -157,11 +179,11 @@ function renderBoard() {
   $('summary-title').textContent = selectedPlan?.title || selectedBoard?.title || t('summary.titleDefault');
   const description = selectedPlan?.description || selectedBoard?.description || (state.boards.length ? '' : t('summary.descriptionEmpty'));
   $('summary-description').textContent = description; $('summary-description').hidden = !description;
-  $('summary-stats').replaceChildren(...(state.boards.length ? [...(selectedBoard ? [] : [stat('boards', 'boards', counts.boards)]), stat('folder', 'plans', counts.plans), stat('doing', 'doing', counts.doing), stat('blocked', 'blocked', counts.blocked)] : []));
+  $('summary-stats').replaceChildren(...(state.boards.length ? [...(selectedBoard ? [] : [stat('inbox', 'boards', counts.boards)]), stat('folder', 'plans', counts.plans), stat('spinner', 'doing', counts.doing), stat('blocked', 'blocked', counts.blocked)] : []));
   $('edit-plan-button').hidden = !selectedPlan;
   $('edit-board-button').hidden = !selectedBoard;
   $('progress-label').textContent = `${complete} / ${active.length}`; $('progress').setAttribute('aria-valuenow',progress); $('progress-value').style.width = `${progress}%`;
-  $('side-progress-label').textContent = `${complete} / ${active.length}`; $('side-ring').style.setProperty('--p', String(progress));
+  $('side-progress-label').textContent = `${complete}/${active.length}`; $('side-ring').style.setProperty('--p', String(progress)); $('side-bar').style.width = `${progress}%`;
   const search = $('search').value.trim().toLocaleLowerCase();
   const tasks = scoped.filter(tk => !search || [tk.title,tk.key,tk.outcome,tk.next_step,tk.owner,...(tk.tags || []),planFor(tk)?.title,boardFor(tk)?.title].filter(Boolean).join(' ').toLocaleLowerCase().includes(search));
   const chosenStatus = $('status-filter').value;
@@ -169,14 +191,14 @@ function renderBoard() {
   const shown = tasks.filter(tk => visible.includes(tk.status));
   const excluded = tasks.length - shown.length;
   $('board-count').textContent = (shown.length === 1 ? t('board.taskOne') : t('board.taskMany',{n:shown.length})) + (excluded ? t('board.outsideSuffix',{n:excluded}) : '');
-  $('nav-count').textContent = String(shown.length); renderNav(selectedBoard, selectedPlan);
+  $('nav-count').textContent = String(shown.length); syncActorList();
   $('empty-board').hidden = state.boards.length > 0;
   $('board').className = `board${chosenStatus ? ' single' : visible.length > 5 ? ' extra' : ''}`;
   $('board').style.setProperty('--status-columns',String(visible.length));
   $('board').replaceChildren(principlesColumn(selectedBoard,selectedPlan),...visible.map(status => {
     const inColumn = tasks.filter(tk => tk.status === status).sort((a,b) => a.priority-b.priority || new Date(timeValue(a.created_at || 0)).valueOf() - new Date(timeValue(b.created_at || 0)).valueOf());
     const column = el('section','column'); column.dataset.status = status; column.setAttribute('aria-label',`${labels[status]} (${inColumn.length})`);
-    const mark = el('span','status-icon'); mark.append(icon(status,17));
+    const mark = el('span','status-icon'); mark.append(icon(status,17,2));
     const head = append(el('div','column-header'),mark,el('h3','',labels[status]),el('span','column-count',inColumn.length));
     if (['backlog','ready'].includes(status)) { const add = button('',() => openTaskEditor(status),'column-add'); add.append(icon('plus',16)); add.setAttribute('aria-label',t('column.addAria',{status:labels[status].toLocaleLowerCase()})); head.append(add); }
     const cards = el('div','cards'); cards.append(...inColumn.map(task => {
@@ -200,22 +222,23 @@ function renderBoard() {
   }));
 }
 function principleCards(principles) {
-  return (principles || []).map(p => {
-    const mark = el('span', 'principle-icon'); mark.append(icon('doc', 20));
-    const card = append(el('article', 'principle-card'), mark, append(el('div', 'principle-text'), el('h4', '', p.title), el('p', '', p.content)));
+  return (principles || []).map((p, i) => {
+    // The icon alternates between two marks; it carries no meaning of its own.
+    const mark = el('span', i % 2 ? 'principle-icon leaf-mark' : 'principle-icon'); mark.append(icon(i % 2 ? 'leaf' : 'doc', 30, i % 2 ? 1.7 : 1.9));
+    const card = append(el('article', 'principle-card'), append(el('div', 'principle-head'), mark, el('h4', '', p.title)), el('p', '', p.content));
     card.dir = 'auto'; return card;
   });
 }
 function principlesColumn(selectedBoard,selectedPlan) {
   const column = el('section','column principles-column'); column.id = 'principles-column';
   column.setAttribute('aria-label',t('principles.title'));
-  const leaf = el('span', 'status-icon leaf'); leaf.append(icon('leaf', 22));
+  const leaf = el('span', 'status-icon leaf'); leaf.append(icon('leaf', 32, 1.7));
   append(column,append(el('div','column-header'),leaf,el('h3','',t('principles.title'))),el('p','help',t('principles.help')));
   const boards = state.boards.filter(b => (!selectedBoard || b.id === selectedBoard.id) && (!selectedPlan || b.id === selectedPlan.board_id) && (!$('scope-filter').value || b.scope === $('scope-filter').value || state.plans.some(p => p.board_id === b.id && p.scope === $('scope-filter').value)));
   for (const board of boards) {
     const group = el('div','principle-group');
     const edit = mutationButton(t('principles.edit'),() => openPrinciplesEditor(board),'link-button'); edit.append(icon('chevronRight',14));
-    const shield = el('span', 'principle-icon shield'); shield.append(icon('shield', 20));
+    const shield = el('span', 'principle-icon shield'); shield.append(icon('shield', 30, 1.9));
     append(group, append(el('div', 'principle-board'), shield, append(el('div', 'principle-text'), el('strong', '', board.title), edit)));
     append(group,...principleCards(board.principles));
     if (!board.principles?.length) group.append(el('p','help',t('principles.none')));
@@ -578,7 +601,76 @@ $('search').addEventListener('input',renderBoard);
 $('actor').addEventListener('change',() => { try { localStorage.setItem(actorKey,actor()); } catch { /* Optional preference. */ } if ($('task-dialog').open) { notice($('task-error'),t('task.actorChanged'),'warning'); } });
 try { $('actor').value = localStorage.getItem(actorKey) || 'local-user'; } catch { /* Default actor works without storage. */ }
 syncActor(); $('actor').addEventListener('input', syncActor);
-$('nav-tasks').addEventListener('click', event => { event.preventDefault(); chooseBoard(''); });
+// Sidebar. Home clears every filter; Tasks clears the board, project and status filters and brings the columns into view.
+$('nav-home').addEventListener('click', () => { for (const id of ['board-filter','plan-filter','scope-filter','status-filter']) $(id).value = ''; $('search').value = ''; $('show-inactive').checked = false; populateProjects(); renderBoard(); scrollTo({top:0}); });
+$('nav-tasks').addEventListener('click', () => { for (const id of ['board-filter','plan-filter','status-filter']) $(id).value = ''; populateProjects(); renderBoard(); $('board').scrollIntoView({block:'start'}); });
+$('nav-boards').addEventListener('click', () => { if (popover?.anchor === $('nav-boards')) closePopover(); else openNavMenu($('nav-boards'), 'boards'); });
+$('nav-plans').addEventListener('click', () => { if (popover?.anchor === $('nav-plans')) closePopover(); else openNavMenu($('nav-plans'), 'plans'); });
+// Roadmap, knowledge, reports and settings are not features of this tool. They say so instead of doing nothing.
+document.querySelectorAll('[data-soon]').forEach(item => item.addEventListener('click', () => { notice($('global-notice'), t('nav.soon', {name:t(item.dataset.soon)}), 'warning'); $('global-notice').scrollIntoView({block:'nearest'}); }));
+$('more-button').addEventListener('click', () => togglePopover($('more-panel'), $('more-button')));
+$('whoami').addEventListener('click', () => { $('actor').scrollIntoView({block:'center'}); $('actor').focus(); $('actor').select(); });
+$('actor-avatar').replaceChildren(icon('user', 14));
+// Light or dark. With nothing chosen the style sheet follows the system; the toggle makes the choice explicit and remembers it.
+const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+const isDark = () => (document.documentElement.dataset.theme || (darkQuery.matches ? 'dark' : 'light')) === 'dark';
+function syncTheme() { const dark = isDark(), label = t(dark ? 'theme.toLight' : 'theme.toDark'); $('theme-toggle').replaceChildren(icon(dark ? 'moon' : 'sun', 18)); $('theme-toggle').setAttribute('aria-label', label); $('theme-toggle').title = label; }
+try { const saved = localStorage.getItem(themeKey); if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved; } catch { /* Storage can be disabled; the system preference applies. */ }
+$('theme-toggle').addEventListener('click', () => { const next = isDark() ? 'light' : 'dark'; document.documentElement.dataset.theme = next; try { localStorage.setItem(themeKey, next); } catch { /* The choice lasts until the page closes. */ } syncTheme(); });
+darkQuery.addEventListener('change', syncTheme); syncTheme();
+document.addEventListener('pointerdown', event => { if (popover && !popover.panel.contains(event.target) && !popover.anchor.contains(event.target)) closePopover(); });
+document.addEventListener('keydown', event => {
+  if (!popover) return;
+  if (event.key === 'Escape') { const {anchor} = popover; closePopover(); anchor.focus(); return; }
+  const items = [...popover.panel.querySelectorAll('.menu-item')], at = items.indexOf(document.activeElement);
+  if (items.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) { event.preventDefault(); items[(at + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+});
+addEventListener('resize', closePopover); addEventListener('scroll', closePopover, {passive:true});
+
+// The search box in the top bar finds a task, board, mini project or person and goes there. (The field above the
+// columns filters what the columns show; this one navigates.)
+const searchBox = $('global-search'), searchResults = $('search-results');
+let searchHits = [], searchAt = -1;
+function findHits(query) {
+  const needle = query.trim().toLocaleLowerCase(); if (!needle) return [];
+  const has = (...parts) => parts.filter(Boolean).join(' ').toLocaleLowerCase().includes(needle);
+  const owners = [...new Set(state.tasks.map(tk => tk.owner).filter(Boolean))].filter(name => has(name)).slice(0, 4);
+  return [
+    ...state.tasks.filter(tk => has(tk.title, tk.key, tk.outcome, tk.next_step)).slice(0, 6).map(tk => ({group:'search.tasks', title:tk.title, sub:`${tk.key || ''} · ${labels[tk.status]}`, go:() => openTask(tk.id)})),
+    ...state.boards.filter(b => has(b.title, b.scope)).slice(0, 4).map(b => ({group:'search.boards', title:b.title, sub:b.scope || '', go:() => chooseBoard(b.id)})),
+    ...state.plans.filter(pl => has(pl.title, pl.scope)).slice(0, 4).map(pl => ({group:'search.plans', title:pl.title, sub:state.boards.find(b => b.id === pl.board_id)?.title || '', go:() => { chooseBoard(pl.board_id); choosePlan(pl.id); }})),
+    ...owners.map(name => ({group:'search.people', title:name, sub:(n => n === 1 ? t('board.taskOne') : t('board.taskMany', {n}))(state.tasks.filter(tk => tk.owner === name).length), go:() => { $('search').value = name; renderBoard(); }})),
+  ];
+}
+function closeSearch() { searchResults.hidden = true; searchBox.setAttribute('aria-expanded', 'false'); searchBox.removeAttribute('aria-activedescendant'); searchAt = -1; }
+function markSearch(index) {
+  searchAt = index; searchResults.querySelectorAll('[role=option]').forEach((node, i) => node.setAttribute('aria-selected', String(i === index)));
+  const node = searchResults.querySelectorAll('[role=option]')[index]; if (node) { searchBox.setAttribute('aria-activedescendant', node.id); node.scrollIntoView({block:'nearest'}); } else searchBox.removeAttribute('aria-activedescendant');
+}
+function pickSearch(index) { const hit = searchHits[index]; if (!hit) return; closeSearch(); searchBox.value = ''; hit.go(); }
+function renderSearch() {
+  const query = searchBox.value; searchHits = findHits(query);
+  if (!query.trim()) { closeSearch(); return; }
+  const nodes = []; let lastGroup = '';
+  if (!searchHits.length) nodes.push(el('div', 'menu-empty', t('search.none', {q:query.trim().slice(0, 60)})));
+  searchHits.forEach((hit, i) => {
+    if (hit.group !== lastGroup) { lastGroup = hit.group; nodes.push(el('div', 'result-group', t(hit.group))); }
+    const row = el('button', 'result-item'); row.type = 'button'; row.id = `search-hit-${i}`; row.tabIndex = -1; row.setAttribute('role', 'option'); row.setAttribute('aria-selected', 'false');
+    const title = el('span', 'result-title', hit.title), sub = el('span', 'result-sub', hit.sub); title.dir = 'auto'; sub.dir = 'auto';
+    append(row, title, hit.sub ? sub : null); row.addEventListener('click', () => pickSearch(i)); nodes.push(row);
+  });
+  searchResults.replaceChildren(...nodes); searchResults.setAttribute('aria-label', t('search.resultsAria')); searchResults.hidden = false; searchBox.setAttribute('aria-expanded', 'true'); markSearch(searchHits.length ? 0 : -1);
+}
+searchBox.addEventListener('input', renderSearch);
+searchBox.addEventListener('focus', renderSearch);
+searchBox.addEventListener('keydown', event => {
+  if (event.key === 'Escape') { if (!searchResults.hidden) { closeSearch(); event.stopPropagation(); } return; }
+  if (searchResults.hidden || !searchHits.length) return;
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); markSearch((searchAt + (event.key === 'ArrowDown' ? 1 : -1) + searchHits.length) % searchHits.length); }
+  else if (event.key === 'Enter') { event.preventDefault(); pickSearch(searchAt); }
+});
+searchResults.addEventListener('pointerdown', event => event.preventDefault());   // keep focus in the box until the click lands
+searchBox.addEventListener('blur', closeSearch);
 // The language is remembered in storage; if storage is blocked it travels in the URL instead.
 $('lang-switch').value = locale;
 $('lang-switch').addEventListener('change',() => {

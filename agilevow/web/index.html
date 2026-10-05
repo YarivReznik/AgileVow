@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   <title>AgileVow</title>
   <link rel="stylesheet" href="/board.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d2939'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='20' font-weight='700' text-anchor='middle' fill='white'%3EA%3C/text%3E%3C/svg%3E">
@@ -12,52 +12,55 @@
   <div class="app">
     <aside class="sidebar" aria-label="Navigation" data-i18n-aria-label="nav.aria">
       <a href="/" class="brand"><span class="brand-mark" aria-hidden="true">A</span><span class="brand-name">AgileVow</span></a>
-      <nav class="nav">
-        <a href="/" class="nav-item active" id="nav-tasks" aria-current="page">
-          <span class="icon-slot" data-icon="tasks"></span><span class="nav-label" data-i18n="nav.tasks">Tasks</span><span class="nav-count" id="nav-count">0</span>
-        </a>
-        <section class="nav-group" aria-labelledby="nav-boards-title">
-          <h2 class="nav-heading" id="nav-boards-title"><span class="icon-slot" data-icon="boards"></span><span data-i18n="nav.boards">Boards</span></h2>
-          <ul class="nav-list" id="nav-boards"></ul>
-        </section>
-        <section class="nav-group" aria-labelledby="nav-plans-title">
-          <h2 class="nav-heading" id="nav-plans-title"><span class="icon-slot" data-icon="folder"></span><span data-i18n="nav.plans">Mini projects</span></h2>
-          <ul class="nav-list" id="nav-plans"></ul>
-        </section>
+      <nav class="nav" aria-label="Sections" data-i18n-aria-label="nav.sections">
+        <button type="button" class="nav-item" id="nav-home"><span class="icon-slot" data-icon="home" data-size="20"></span><span class="nav-label" data-i18n="nav.home">Home</span></button>
+        <button type="button" class="nav-item active" id="nav-tasks" aria-current="page"><span class="icon-slot" data-icon="tasks" data-size="20"></span><span class="nav-label" data-i18n="nav.tasks">Tasks</span><span class="nav-count" id="nav-count">0</span></button>
+        <button type="button" class="nav-item" id="nav-boards" aria-haspopup="true" aria-expanded="false"><span class="icon-slot" data-icon="book" data-size="20"></span><span class="nav-label" data-i18n="nav.boards">Boards</span></button>
+        <button type="button" class="nav-item" id="nav-plans" aria-haspopup="true" aria-expanded="false"><span class="icon-slot" data-icon="cube" data-size="20"></span><span class="nav-label" data-i18n="nav.plans">Mini projects</span></button>
+        <button type="button" class="nav-item" data-soon="nav.roadmap"><span class="icon-slot" data-icon="map" data-size="20"></span><span class="nav-label" data-i18n="nav.roadmap">Roadmap</span></button>
+        <button type="button" class="nav-item" data-soon="nav.knowledge"><span class="icon-slot" data-icon="knowledge" data-size="20"></span><span class="nav-label" data-i18n="nav.knowledge">Knowledge</span></button>
+        <button type="button" class="nav-item" data-soon="nav.reports"><span class="icon-slot" data-icon="chart" data-size="20"></span><span class="nav-label" data-i18n="nav.reports">Reports</span></button>
+        <button type="button" class="nav-item" data-soon="nav.settings"><span class="icon-slot" data-icon="gear" data-size="20"></span><span class="nav-label" data-i18n="nav.settings">Settings</span></button>
       </nav>
       <div class="sidebar-foot">
         <p class="quote" data-i18n="sidebar.quote">Small steps make real progress.</p>
         <div class="side-progress">
           <span class="ring" id="side-ring" aria-hidden="true"></span>
-          <span class="side-progress-text"><strong id="side-progress-label">0 / 0</strong> <span data-i18n="summary.completed">completed</span></span>
+          <span class="side-progress-text"><strong id="side-progress-label">0/0</strong> <span data-i18n="summary.completed">completed</span></span>
         </div>
+        <div class="side-track" aria-hidden="true"><div class="side-track-value" id="side-bar"></div></div>
       </div>
     </aside>
     <div class="main">
       <header class="topbar">
-        <label class="searchbox">
-          <span class="icon-slot" data-icon="search"></span>
-          <input id="search" type="search" placeholder="Search tasks, boards, or people…" data-i18n-placeholder="filter.searchPlaceholder" aria-label="Search" data-i18n-aria-label="filter.search" autocomplete="off">
-        </label>
+        <div class="gsearch">
+          <label class="searchbox">
+            <span class="icon-slot" data-icon="search"></span>
+            <input id="global-search" type="search" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" placeholder="Search tasks, boards, or people…" data-i18n-placeholder="filter.searchPlaceholder" aria-label="Search" data-i18n-aria-label="filter.search" autocomplete="off">
+          </label>
+          <div id="search-results" class="popover search-results" role="listbox" hidden></div>
+        </div>
         <div class="topbar-right">
+          <button type="button" class="icon-button" id="theme-toggle" aria-label="Switch to dark theme" data-i18n-aria-label="theme.toDark" data-i18n-title="theme.toDark" title="Switch to dark theme"><span class="icon-slot" data-icon="sun" data-size="18"></span></button>
           <select id="lang-switch" class="lang-switch" aria-label="Language" data-i18n-aria-label="lang.label">
             <option value="en" data-i18n="lang.en">English</option>
             <option value="he" data-i18n="lang.he">Hebrew</option>
           </select>
-          <div class="whoami">
+          <button type="button" class="whoami" id="whoami" aria-label="Change who is acting" data-i18n-aria-label="actor.change">
             <span class="avatar" id="whoami-avatar" aria-hidden="true"></span>
             <span class="whoami-text"><strong id="whoami-name">local-user</strong><small data-i18n="actor.local">Local user</small></span>
-          </div>
+            <span class="icon-slot" data-icon="chevronDown" data-size="16"></span>
+          </button>
         </div>
       </header>
       <main class="shell">
         <div class="page-heading">
           <div><h1 data-i18n="board.title">Tasks</h1><p data-i18n="board.tagline">Keep the next step clear. Carry the evidence forward.</p></div>
           <div class="actions">
-            <button id="export-button"><span class="icon-slot" data-icon="download"></span><span data-i18n="action.export">Export</span></button>
-            <button id="import-button"><span class="icon-slot" data-icon="upload"></span><span data-i18n="action.importPlan">Import plan</span></button>
-            <button id="new-board-button"><span class="icon-slot" data-icon="boards"></span><span data-i18n="action.newBoard">New board</span></button>
-            <button id="new-plan-button"><span class="icon-slot" data-icon="folder"></span><span data-i18n="action.newPlan">New mini project</span></button>
+            <button id="export-button" data-i18n="action.export">Export</button>
+            <button id="import-button" data-i18n="action.importPlan">Import plan</button>
+            <button id="new-board-button" data-i18n="action.newBoard">New board</button>
+            <button id="new-plan-button" data-i18n="action.newPlan">New mini project</button>
             <button id="new-task-button" class="primary"><span class="icon-slot" data-icon="plus"></span><span data-i18n="action.newTask">New task</span></button>
           </div>
         </div>
@@ -76,8 +79,8 @@
           <div class="summary-progress">
             <div class="progress-line"><strong id="progress-label" class="progress-label">—</strong> <span class="muted" data-i18n="summary.completed">completed</span></div>
             <div class="progress-track" role="progressbar" id="progress" aria-label="Completed tasks" data-i18n-aria-label="summary.completedTasks" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-value" class="progress-value"></div></div>
-            <p class="tagline" data-i18n="summary.tagline">Clarity today, bigger tomorrow.</p>
           </div>
+          <p class="tagline" data-i18n="summary.tagline">Clarity today, bigger tomorrow.</p>
         </section>
         <div class="toolbar">
           <div class="toolbar-filters">
@@ -95,14 +98,20 @@
             <option value="blocked" data-i18n="status.blocked">Blocked</option>
             <option value="cancelled" data-i18n="status.cancelled">Cancelled</option>
           </select></label>
-          <label class="check"><input id="show-inactive" type="checkbox"><span data-i18n="filter.showInactive">Show blocked &amp; cancelled columns</span></label>
+          <label class="filter-search"><span class="icon-slot" data-icon="search" data-size="16"></span><input id="search" type="search" placeholder="Title, next step, owner…" data-i18n-placeholder="filter.titlePlaceholder" aria-label="Filter tasks" data-i18n-aria-label="filter.titleAria" autocomplete="off"></label>
           </div>
           <div class="toolbar-tools">
-          <label class="filter actor"><span class="actor-label" data-i18n="filter.actor">Acting as</span><span class="actor-chip"><span class="avatar" id="actor-avatar" aria-hidden="true"></span><input id="actor" value="local-user" maxlength="200" autocomplete="off"></span></label>
-          <button id="refresh-button" title="Refresh saved tasks" data-i18n-title="action.refreshTitle"><span class="icon-slot" data-icon="refresh"></span><span data-i18n="action.refresh">Refresh</span></button>
+          <label class="filter actor"><span class="actor-label" data-i18n="filter.actor">Acting as</span><span class="actor-chip"><span class="avatar av-none" id="actor-avatar" aria-hidden="true"></span><input id="actor" value="local-user" maxlength="200" list="actor-list" autocomplete="off"><span class="icon-slot actor-caret" data-icon="chevronDown" data-size="16"></span></span></label>
+          <datalist id="actor-list"></datalist>
+          <button id="refresh-button" title="Refresh saved tasks" data-i18n-title="action.refreshTitle"><span class="icon-slot" data-icon="refresh" data-size="16"></span><span data-i18n="action.refresh">Refresh</span></button>
+          <button id="more-button" class="more-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="more-panel" aria-label="More options" data-i18n-aria-label="action.more"><span class="icon-slot" data-icon="dots" data-size="18"></span></button>
           </div>
         </div>
-        <div class="board-meta flex spread"><span id="board-count" data-i18n="board.loading">Loading…</span><span id="updated-at"></span></div>
+        <div id="more-panel" class="popover more-panel" hidden>
+          <label class="check"><input id="show-inactive" type="checkbox"><span data-i18n="filter.showInactive">Show blocked &amp; cancelled columns</span></label>
+          <p class="more-meta"><span id="board-count" data-i18n="board.loading">Loading…</span><span id="updated-at"></span></p>
+        </div>
+        <div id="nav-menu" class="popover nav-menu" role="menu" hidden></div>
         <section id="empty-board" class="empty-board" hidden>
           <div><h3 data-i18n="empty.title">Give each effort a home</h3><p data-i18n="empty.text">Create a board for a project, team, or area of work. Organize its mini projects into small tasks with clear outcomes and evidence.</p></div>
           <button id="empty-create" class="primary" data-i18n="action.createBoard">Create a board</button>
