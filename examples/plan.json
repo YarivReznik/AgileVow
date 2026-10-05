@@ -1,0 +1,45 @@
+{
+  "source_key": "launch-checklist",
+  "title": "Launch checklist",
+  "description": "A small plan to try AgileVow on: three tasks, the second and third waiting on the one before.",
+  "scope": "demo",
+  "kind": "release",
+  "sources": [],
+  "tasks": [
+    {
+      "key": "write-readme",
+      "title": "Write the README",
+      "outcome": "A newcomer can install the project and run it from the README alone.",
+      "acceptance": [
+        "The README has install and run steps that work on a clean machine.",
+        "Every command in the README was run and its output matches what is written."
+      ],
+      "priority": 1,
+      "status": "ready",
+      "tags": ["docs"]
+    },
+    {
+      "key": "cut-release",
+      "title": "Cut the first release",
+      "outcome": "Version 0.1.0 is tagged and its notes list what changed.",
+      "acceptance": [
+        "The tag exists and points at the commit that passed the checks.",
+        "The release notes name every user-visible change."
+      ],
+      "depends_on": ["write-readme"],
+      "status": "backlog",
+      "tags": ["release"]
+    },
+    {
+      "key": "announce",
+      "title": "Announce it",
+      "outcome": "The announcement is published where the first users will see it.",
+      "acceptance": [
+        "The post links to the release and to the README."
+      ],
+      "depends_on": ["cut-release"],
+      "status": "backlog",
+      "tags": ["release"]
+    }
+  ]
+}

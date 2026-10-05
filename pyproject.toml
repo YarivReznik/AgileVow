@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agilevow"
+version = "0.1.0"
+description = "A Kanban board for AI agents: claims with leases, evidence for every criterion, and a validation gate before Done."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Yariv Reznik" }]
+keywords = ["kanban", "agents", "ai", "task-board", "claude", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Bug Tracking",
+]
+dependencies = []   # standard library only
+
+[project.scripts]
+agilevow = "agilevow.__main__:main"
+
+[tool.setuptools]
+packages = ["agilevow"]
+
+[tool.setuptools.package-data]
+agilevow = ["web/*"]

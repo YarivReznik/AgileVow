@@ -1,0 +1,11 @@
+{
+  "name": "agilevow-browser-tests",
+  "private": true,
+  "description": "Dev-only dependency for tests/ui.cjs. AgileVow itself has no runtime dependencies.",
+  "scripts": {
+    "test:ui": "node tests/ui.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
