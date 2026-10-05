@@ -9,6 +9,7 @@ COMMANDS = {
     "client": ("agilevow.client", "read and write the board from a shell (claim, evidence, move, ...)"),
     "manager": ("agilevow.manager", "read-only audit: what to work on next, and what is wrong"),
     "review": ("agilevow.review", "prepare and submit a post-validation report"),
+    "mcp": ("agilevow.mcp", "the worker loop as Model Context Protocol tools, over stdio"),
 }
 
 

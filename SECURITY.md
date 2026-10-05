@@ -69,6 +69,16 @@ An unexpected exception is logged to the server's stderr with a traceback and th
 
 POSIX only (macOS, Linux). Source and attachment paths are walked with `O_NOFOLLOW` and `dir_fd` opens, which Windows does not offer. On a system without them `serve` exits with an error rather than running with weaker checks.
 
+## The MCP server
+
+`agilevow mcp` is a child process of whatever launches it (an agent client) and talks to `AGILEVOW_URL` over HTTP, which is `127.0.0.1` unless you change it. It adds no listening socket and no new authority: whoever can launch it has the powers of the actor name it is given, the same as anyone who can reach the board's port.
+
+- Arguments come from a model and are treated as untrusted: they are checked against each tool's schema, and the board server's own checks remain the authority.
+- Lease tokens are never returned to the model. They are kept in `~/.agilevow/leases-ACTOR.json` (folder `0700`, file `0600`) unless `--leases` says otherwise.
+- There is no tool to create a board, so an agent cannot write the binding principles it will later be judged against. It can import a plan into an existing board; a plan's `sources` can name any file under the server's `--root`, exactly as through the API (see "What an API caller can reach in your files").
+- `submit_review` records whoever the report names as reviewer, so the agent that did the work can validate it. Use a different actor for review if that matters to you.
+- The process writes protocol messages to stdout and everything else to stderr. A tool result larger than 100,000 characters is truncated.
+
 ## Dependencies
 
 None at runtime: the standard library only. `package.json` lists Playwright for the browser test and is not used when you run AgileVow.

@@ -1,7 +1,7 @@
 <!-- Paste everything below into your AGENTS.md or CLAUDE.md. Replace BOARD-KEY and the URL. -->
 ## Task board (AgileVow)
 
-The AgileVow board is the record of what work exists and what state it is in. The server is at `http://127.0.0.1:8765`; set `AGILEVOW_URL` if it is elsewhere and `AGILEVOW_ACTOR` to your own name. Run `python3 -m agilevow ...` (or `agilevow ...` if installed). `TASK` is a task key or id.
+The AgileVow board is the record of what work exists and what state it is in. The server is at `http://127.0.0.1:8765`; set `AGILEVOW_URL` if it is elsewhere and `AGILEVOW_ACTOR` to your own name. Run `python3 -m agilevow ...` (or `agilevow ...` if installed). `TASK` is a task key or id. If your client has the AgileVow MCP server (see docs/MCP.md), use its tools instead of the commands below (`list_tasks`, `get_context`, `claim_task`, `record_evidence`, `check_criteria`, `move_task`, `prepare_review`, `submit_review`, `release_task`); the rules are identical.
 
 Before you work:
 - Resume first. Run `python3 -m agilevow client tasks --board BOARD-KEY` and `python3 -m agilevow manager --board BOARD-KEY`. Continue a card you already hold before starting another. Do not start work that has no card.

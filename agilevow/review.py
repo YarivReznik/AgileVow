@@ -56,6 +56,27 @@ def verdict(task, report):
     return 'review' if failures else 'done'
 
 
+def submit(api, task, report):
+    """Retain the whole decision on the card, then run the guarded `validate`. `api(route, body=None)` returns parsed JSON.
+    The command line and the MCP server both call this, so they apply exactly the same checks. Returns the task."""
+    status = verdict(task, report)
+    # Retain the complete decision on the card before the guarded transition.
+    body = json.dumps(report, ensure_ascii=False)
+    if len(body) > 11000: raise ValueError('Report too large for retained card comment')
+    actor = report['reviewer']
+    task = api('/api/tasks/comment', dict(id=task['id'], revision=task['revision'], actor=actor,
+                kind='decision', body='Post validation: '+status+'\n'+body))['task']
+    def row(check, key):
+        return {key: check[key], 'passed': check['result']=='pass',
+                'observed': check['method']+' — '+check['observations'], 'ref': check['evidence'][0],
+                **{f:check.get(f,'') for f in ('expected','avoid','fix')}}
+    return api('/api/tasks/action', dict(id=task['id'], revision=task['revision'], actor=actor,
+               op='validate', principles_sha256=report['principles_sha256'], validation={
+                   'result': 'pass' if status=='done' else 'fail', 'summary': report['summary'],
+                   'checks': [row(c,'criterion') for c in report['checks']],
+                   'principles': [row(c,'key') for c in report['principles']]}))['task']
+
+
 def main(argv=None):
     """Runs the command; every expected failure is one line on stderr and exit status 1, never a traceback."""
     try:
@@ -88,22 +109,7 @@ def _main(argv):
         print('Prepared pending report; run relevant tests and inspect artifacts before completing checks.')
         return
     report = json.loads(a.report.read_text())
-    status = verdict(task, report)
-    # Retain the complete decision on the card before the guarded transition.
-    body = json.dumps(report, ensure_ascii=False)
-    if len(body) > 11000: raise ValueError('Report too large for retained card comment')
-    actor = report['reviewer']
-    task = api('/api/tasks/comment', dict(id=task['id'], revision=task['revision'], actor=actor,
-                kind='decision', body='Post validation: '+status+'\n'+body))['task']
-    def row(check, key):
-        return {key: check[key], 'passed': check['result']=='pass',
-                'observed': check['method']+' — '+check['observations'], 'ref': check['evidence'][0],
-                **{f:check.get(f,'') for f in ('expected','avoid','fix')}}
-    task = api('/api/tasks/action', dict(id=task['id'], revision=task['revision'], actor=actor,
-                op='validate', principles_sha256=report['principles_sha256'], validation={
-                    'result': 'pass' if status=='done' else 'fail', 'summary': report['summary'],
-                    'checks': [row(c,'criterion') for c in report['checks']],
-                    'principles': [row(c,'key') for c in report['principles']]}))['task']
+    task = submit(api, task, report)
     print(json.dumps({'task':task['id'], 'status':task['status']}))
 
 

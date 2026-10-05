@@ -154,6 +154,7 @@ All commands: `python3 -m agilevow <command>`. Run `--help` on any of them.
 | `manager --board BOARD [--wip-limit N] [--stale-seconds N]` | Read-only audit as JSON: what to work on next and what is wrong. `BOARD` is the board key or its id. |
 | `review prepare --task TASK-ID --report FILE` | Write a pending validation report for a task in Post validation. |
 | `review submit --task TASK-ID --report FILE` | Check the report, store it as a decision comment, and run `validate`. |
+| `mcp [--url URL] [--actor NAME] [--leases FILE]` | Serve the worker loop to an agent as MCP tools over stdio. See [docs/MCP.md](docs/MCP.md). |
 
 `TASK` is a task key or id. If the same key exists in two plans, add `--plan PLAN-KEY` before the subcommand (`client --plan PLAN-KEY claim ...`); `--url` and `--actor` go in the same place. Not in the CLI: correction checks (Python client or API), recover and reconcile (Python client or API), board and plan edits, uploads. See [docs/API.md](docs/API.md).
 
@@ -165,11 +166,21 @@ Environment for `client`, `manager` and `review`:
 | `AGILEVOW_ACTOR` | `agent` | Who is acting. Free text, not authenticated. |
 | `AGILEVOW_LEASES` | `./.agilevow/leases.json` | Where `client` keeps lease tokens (owner-only file, relative to the current folder). The server shows a token once, at claim. |
 
+## Use it from an agent (MCP)
+
+`agilevow mcp` serves the same worker loop as [Model Context Protocol](https://modelcontextprotocol.io) tools over stdio, so an agent can resume work, read the principles, claim, record evidence and validate without a shell. It talks to the running server, so every rule above still applies, and it offers no way to create a board or to reach Done except `submit_review`.
+
+```sh
+claude mcp add agilevow -e AGILEVOW_ACTOR=claude -- agilevow mcp
+```
+
+Setup for other clients, the fifteen tools and what is deliberately missing: [docs/MCP.md](docs/MCP.md).
+
 ## `serve` options
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--root DIR` | current folder | The project. Task sources and evidence paths are relative to it. Created if missing. |
+| `--root DIR` | current folder | The project. Task sources and evidence paths are relative to it. Must already exist. |
 | `--data-dir DIR` | `.agilevow` | Database and attachments, relative to `--root`. Must stay inside it. |
 | `--port N` | `8765` | `0` picks a free port and prints it. |
 | `--quiet` | off | Do not log each request. Server errors are still logged. |
@@ -200,10 +211,11 @@ agilevow/             the package
   client.py          the `client` command and the Python `Board` class
   manager.py         the read-only audit
   review.py          the post-validation report tool
+  mcp.py             the MCP server (stdio)
   web/               the board page (HTML, CSS, JavaScript, translations)
 tests/             unit tests and one browser test (tests/ui.cjs)
 examples/plan.json a three-task plan to try
-docs/              API.md, WORKFLOW.md, AGENTS-SNIPPET.md
+docs/              API.md, WORKFLOW.md, MCP.md, AGENTS-SNIPPET.md
 SECURITY.md        threat model
 package.json       development only: Playwright for the browser test
 .github/           the CI workflow
