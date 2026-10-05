@@ -76,6 +76,9 @@ function findLeaks({scope, ignore}) {
   await page.locator('#board-count').filter({hasText:'tasks'}).waitFor();
   await page.locator('#actor').fill('Zoë Ünal');
   await page.locator('#actor').dispatchEvent('change');
+  // Who is acting is shown as initials beside the filters and at the top right: there are no accounts, only the text typed here.
+  assert.equal(await page.locator('#whoami-name').innerText(),'Zoë Ünal');
+  assert.equal(await page.locator('#whoami-avatar').innerText(),'ZÜ');
   const edit = page.locator('#editor-dialog');
   const fill = async (name,value) => edit.locator(`[name="${name}"]`).fill(value);
   const submitEditor = async () => {await page.locator('#editor-save').click(); await edit.waitFor({state:'hidden'});};
@@ -95,7 +98,7 @@ function findLeaks({scope, ignore}) {
   const planId = await page.locator('#plan-filter').inputValue(); assert.match(planId,/^plan-/);
   // One of each must read as one of each, not "1 boards".
   await page.locator('#board-filter').selectOption(''); await page.locator('#plan-filter').selectOption('');
-  assert.equal(await page.locator('#summary-description').innerText(),'1 board · 1 mini project · 0 in progress · 0 blocked');
+  assert.deepEqual(await page.$$eval('#summary-stats .stat',items => items.map(li => li.innerText.replace(/\s+/g,' ').trim())),['1 board','1 mini project','0 in progress','0 blocked']);
   await page.locator('#board-filter').selectOption(boardId); await page.locator('#plan-filter').selectOption(planId);
   await page.locator('#new-task-button').click();
   await fill('key','one'); await fill('title','Make the next step clear'); await fill('outcome','A later session can resume the task');
@@ -193,6 +196,24 @@ function findLeaks({scope, ignore}) {
   await page.locator('#board-filter').selectOption(''); await page.locator('#plan-filter').selectOption('');
   assert.equal(await page.locator('.task-card').count(),3);
   passed('Cross-board filtering and structured import replay prevent duplicate tasks');
+  // The sidebar lists the real boards and mini projects; clicking one is the same as choosing it in the toolbar.
+  assert.deepEqual((await page.locator('#nav-boards .nav-link-label').allInnerTexts()).sort(),['Documentation','Shared tools']);
+  await page.locator('#nav-boards .nav-link',{hasText:'Documentation'}).click();
+  assert.equal(await page.locator('#board-filter').inputValue(),second.id);
+  assert.equal(await page.locator('.task-card').count(),2);
+  assert.equal(await page.locator('#nav-count').innerText(),'2');
+  assert.deepEqual(await page.locator('#nav-plans .nav-link-label').allInnerTexts(),['Readable release notes']); // only that board's plans
+  await page.locator('#nav-boards .nav-link.active').click(); // choosing the active board again clears it
+  assert.equal(await page.locator('#board-filter').inputValue(),'');
+  await page.locator('#nav-plans .nav-link',{hasText:'A complete handoff'}).click();
+  assert.equal(await page.locator('.task-card').count(),1);
+  await page.locator('#nav-tasks').click();
+  assert.equal(await page.locator('.task-card').count(),3);
+  assert.equal(await page.locator('#plan-filter').inputValue(),'');
+  // Every status keeps its own tint: the colour is how a column is told from its neighbour at a glance.
+  const tints = await page.$$eval('.column[data-status]',columns => columns.map(c => getComputedStyle(c).backgroundColor));
+  assert.equal(new Set(tints).size,tints.length,'every status column has its own tint');
+  passed('The sidebar navigates boards and mini projects like the filters do, and each status column has its own tint');
   // Retain useful evidence of the board and its detailed card at real viewport sizes.
   await page.screenshot({path:path.join(output,'desktop.png'),fullPage:true});
   await page.goto(base+'/?task='+taskId);
@@ -254,6 +275,10 @@ function findLeaks({scope, ignore}) {
     const board = await page.evaluate(findLeaks,{scope:'body',ignore:'dialog'});
     assert.deepEqual(board,[],`board leaks at ${width}px:\n${board.join('\n')}`);
     assert(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth+1),`the page itself scrolls sideways at ${width}px`);
+    if (width > 600) {
+      const widest = await page.$$eval('.toolbar .filter select',selects => Math.max(...selects.map(s => Math.round(s.getBoundingClientRect().width))));
+      assert(widest <= 200,`a toolbar select grew to ${widest}px at ${width}px: long board names must not stretch the toolbar`);
+    }
     // The exact case from the old board: a long key must not carry its card's text outside the card.
     const spill = await page.$$eval('.task-card',cards=>cards.flatMap(card=>{
       const edge = card.getBoundingClientRect().right;
@@ -316,6 +341,9 @@ function findLeaks({scope, ignore}) {
   assert(groups >= 1);
   assert.equal(await page.getByRole('button',{name:LOCALES.he['principles.edit'],exact:true}).count(),groups);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth+1),'Hebrew layout must not scroll sideways');
+  const titleStart = await page.evaluate(()=>{ const card = document.querySelector('.task-card'), title = card.querySelector('.task-title'), range = document.createRange();
+    range.selectNodeContents(title); return Math.round(range.getClientRects()[0].left - card.getBoundingClientRect().left); });
+  assert(titleStart < 30,`English card text must start at the card's left edge inside the Hebrew layout (it started ${titleStart}px in)`);
   await page.screenshot({path:path.join(output,'hebrew.png')});
   await page.goto(base+'/?lang=en');
   assert.deepEqual(await page.evaluate(()=>[document.documentElement.lang,document.documentElement.dir]),['en','ltr']);

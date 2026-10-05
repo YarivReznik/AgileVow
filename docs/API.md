@@ -76,7 +76,7 @@ Guards on a transition:
 
 | Method | Route | Fields | Purpose |
 | --- | --- | --- | --- |
-| GET | `/`, `/board.css`, `/board.mjs`, `/i18n.mjs` | | The board page and its assets. Nothing else is served as a file. |
+| GET | `/`, `/board.css`, `/board.mjs`, `/i18n.mjs`, `/icons.mjs` | | The board page and its assets. Nothing else is served as a file. |
 | GET | `/api/boards` | | `{boards}`. |
 | POST | `/api/boards/create` | `actor`, `source_key`, `title`; optional `description`, `scope`, `principles` | Create a board. Same content again returns the existing board with `created: false`; different content under the same key is 409. |
 | POST | `/api/boards/update` | `actor`, `id`, `revision`; optional `title`, `description`, `scope`, `principles`, `note` | Edit a board. Changing `principles` needs a `note`. |

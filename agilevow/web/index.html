@@ -9,68 +9,109 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d2939'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='20' font-weight='700' text-anchor='middle' fill='white'%3EA%3C/text%3E%3C/svg%3E">
 </head>
 <body>
-  <header class="topbar">
-    <a href="/" class="brand"><span class="brand-mark" aria-hidden="true">A</span>AgileVow</a>
-    <select id="lang-switch" class="lang-switch" aria-label="Language" data-i18n-aria-label="lang.label">
-      <option value="en" data-i18n="lang.en">English</option>
-      <option value="he" data-i18n="lang.he">Hebrew</option>
-    </select>
-  </header>
-  <main class="shell">
-    <div class="page-heading">
-      <div><h1 data-i18n="board.title">Tasks</h1><p data-i18n="board.tagline">Keep the next step clear. Carry the evidence forward.</p></div>
-      <div class="actions">
-        <button id="export-button" data-i18n="action.export">Export</button>
-        <button id="import-button" data-i18n="action.importPlan">Import plan</button>
-        <button id="new-board-button" data-i18n="action.newBoard">New board</button>
-        <button id="new-plan-button" data-i18n="action.newPlan">New mini project</button>
-        <button id="new-task-button" class="primary" data-i18n="action.newTask">＋ New task</button>
-      </div>
-    </div>
-    <div id="global-notice" class="notice" role="status" hidden></div>
-    <section class="summary" aria-label="Board and mini project summary" data-i18n-aria-label="summary.aria">
-      <div>
-        <div class="eyebrow" id="summary-eyebrow" data-i18n="summary.overview">Workspace overview</div>
-        <div class="summary-title" id="summary-title" data-i18n="summary.titleDefault">Your boards, in one place</div>
-        <p class="summary-description muted" id="summary-description" data-i18n="summary.loading">Loading task board…</p>
-        <div class="flex summary-actions">
-          <button id="edit-board-button" class="small quiet" data-i18n="boardEditor.edit" hidden>Edit board</button>
-          <button id="edit-plan-button" class="small quiet" data-i18n="planEditor.edit" hidden>Edit mini project</button>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navigation" data-i18n-aria-label="nav.aria">
+      <a href="/" class="brand"><span class="brand-mark" aria-hidden="true">A</span><span class="brand-name">AgileVow</span></a>
+      <nav class="nav">
+        <a href="/" class="nav-item active" id="nav-tasks" aria-current="page">
+          <span class="icon-slot" data-icon="tasks"></span><span class="nav-label" data-i18n="nav.tasks">Tasks</span><span class="nav-count" id="nav-count">0</span>
+        </a>
+        <section class="nav-group" aria-labelledby="nav-boards-title">
+          <h2 class="nav-heading" id="nav-boards-title"><span class="icon-slot" data-icon="boards"></span><span data-i18n="nav.boards">Boards</span></h2>
+          <ul class="nav-list" id="nav-boards"></ul>
+        </section>
+        <section class="nav-group" aria-labelledby="nav-plans-title">
+          <h2 class="nav-heading" id="nav-plans-title"><span class="icon-slot" data-icon="folder"></span><span data-i18n="nav.plans">Mini projects</span></h2>
+          <ul class="nav-list" id="nav-plans"></ul>
+        </section>
+      </nav>
+      <div class="sidebar-foot">
+        <p class="quote" data-i18n="sidebar.quote">Small steps make real progress.</p>
+        <div class="side-progress">
+          <span class="ring" id="side-ring" aria-hidden="true"></span>
+          <span class="side-progress-text"><strong id="side-progress-label">0 / 0</strong> <span data-i18n="summary.completed">completed</span></span>
         </div>
       </div>
-      <div class="summary-progress">
-        <div class="flex spread"><span class="muted summary-progress-label" data-i18n="summary.completed">Completed</span><strong id="progress-label" class="progress-label">—</strong></div>
-        <div class="progress-track" role="progressbar" id="progress" aria-label="Completed tasks" data-i18n-aria-label="summary.completedTasks" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-value" class="progress-value"></div></div>
-      </div>
-    </section>
-    <div class="toolbar">
-      <label class="filter"><span data-i18n="common.board">Board</span><select id="board-filter"><option value="" data-i18n="filter.allBoards">All boards</option></select></label>
-      <label class="filter"><span data-i18n="common.miniProject">Mini project</span><select id="plan-filter"><option value="" data-i18n="filter.allPlans">All mini projects</option></select></label>
-      <label class="filter"><span data-i18n="common.scope">Scope</span><select id="scope-filter"><option value="" data-i18n="filter.allScopes">All scopes</option></select></label>
-      <label class="filter"><span data-i18n="filter.status">Status</span><select id="status-filter">
-        <option value="" data-i18n="filter.statusDefault">Board</option>
-        <option value="backlog" data-i18n="status.backlog">Backlog</option>
-        <option value="ready" data-i18n="status.ready">Ready</option>
-        <option value="doing" data-i18n="status.doing">Doing</option>
-        <option value="review" data-i18n="status.review">Review</option>
-        <option value="post_validation" data-i18n="status.post_validation">Post validation</option>
-        <option value="done" data-i18n="status.done">Done</option>
-        <option value="blocked" data-i18n="status.blocked">Blocked</option>
-        <option value="cancelled" data-i18n="status.cancelled">Cancelled</option>
-      </select></label>
-      <label class="filter search"><span data-i18n="filter.search">Search</span><input id="search" type="search" placeholder="Title, next step, owner…" data-i18n-placeholder="filter.searchPlaceholder" autocomplete="off"></label>
-      <label class="filter actor"><span data-i18n="filter.actor">Acting as</span><input id="actor" value="local-user" maxlength="200" autocomplete="off"></label>
-      <button id="refresh-button" title="Refresh saved tasks" data-i18n="action.refresh" data-i18n-title="action.refreshTitle">↻ Refresh</button>
-      <label class="check"><input id="show-inactive" type="checkbox"><span data-i18n="filter.showInactive">Show blocked &amp; cancelled columns</span></label>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <label class="searchbox">
+          <span class="icon-slot" data-icon="search"></span>
+          <input id="search" type="search" placeholder="Search tasks, boards, or people…" data-i18n-placeholder="filter.searchPlaceholder" aria-label="Search" data-i18n-aria-label="filter.search" autocomplete="off">
+        </label>
+        <div class="topbar-right">
+          <select id="lang-switch" class="lang-switch" aria-label="Language" data-i18n-aria-label="lang.label">
+            <option value="en" data-i18n="lang.en">English</option>
+            <option value="he" data-i18n="lang.he">Hebrew</option>
+          </select>
+          <div class="whoami">
+            <span class="avatar" id="whoami-avatar" aria-hidden="true"></span>
+            <span class="whoami-text"><strong id="whoami-name">local-user</strong><small data-i18n="actor.local">Local user</small></span>
+          </div>
+        </div>
+      </header>
+      <main class="shell">
+        <div class="page-heading">
+          <div><h1 data-i18n="board.title">Tasks</h1><p data-i18n="board.tagline">Keep the next step clear. Carry the evidence forward.</p></div>
+          <div class="actions">
+            <button id="export-button"><span class="icon-slot" data-icon="download"></span><span data-i18n="action.export">Export</span></button>
+            <button id="import-button"><span class="icon-slot" data-icon="upload"></span><span data-i18n="action.importPlan">Import plan</span></button>
+            <button id="new-board-button"><span class="icon-slot" data-icon="boards"></span><span data-i18n="action.newBoard">New board</span></button>
+            <button id="new-plan-button"><span class="icon-slot" data-icon="folder"></span><span data-i18n="action.newPlan">New mini project</span></button>
+            <button id="new-task-button" class="primary"><span class="icon-slot" data-icon="plus"></span><span data-i18n="action.newTask">New task</span></button>
+          </div>
+        </div>
+        <div id="global-notice" class="notice" role="status" hidden></div>
+        <section class="summary" aria-label="Board and mini project summary" data-i18n-aria-label="summary.aria">
+          <div class="summary-main">
+            <div class="eyebrow" id="summary-eyebrow" data-i18n="summary.overview">Workspace overview</div>
+            <div class="summary-title" id="summary-title" data-i18n="summary.titleDefault">Your boards, in one place</div>
+            <p class="summary-description muted" id="summary-description" data-i18n="summary.loading">Loading task board…</p>
+            <div class="flex summary-actions">
+              <button id="edit-board-button" class="small quiet" data-i18n="boardEditor.edit" hidden>Edit board</button>
+              <button id="edit-plan-button" class="small quiet" data-i18n="planEditor.edit" hidden>Edit mini project</button>
+            </div>
+          </div>
+          <ul class="stats" id="summary-stats" aria-label="Counts" data-i18n-aria-label="summary.statsAria"></ul>
+          <div class="summary-progress">
+            <div class="progress-line"><strong id="progress-label" class="progress-label">—</strong> <span class="muted" data-i18n="summary.completed">completed</span></div>
+            <div class="progress-track" role="progressbar" id="progress" aria-label="Completed tasks" data-i18n-aria-label="summary.completedTasks" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-value" class="progress-value"></div></div>
+            <p class="tagline" data-i18n="summary.tagline">Clarity today, bigger tomorrow.</p>
+          </div>
+        </section>
+        <div class="toolbar">
+          <div class="toolbar-filters">
+          <label class="filter"><span class="sr-only" data-i18n="common.board">Board</span><select id="board-filter"><option value="" data-i18n="filter.allBoards">All boards</option></select></label>
+          <label class="filter"><span class="sr-only" data-i18n="common.miniProject">Mini project</span><select id="plan-filter"><option value="" data-i18n="filter.allPlans">All mini projects</option></select></label>
+          <label class="filter"><span class="sr-only" data-i18n="common.scope">Scope</span><select id="scope-filter"><option value="" data-i18n="filter.allScopes">All scopes</option></select></label>
+          <label class="filter"><span class="sr-only" data-i18n="filter.status">Status</span><select id="status-filter">
+            <option value="" data-i18n="filter.statusDefault">Board</option>
+            <option value="backlog" data-i18n="status.backlog">Backlog</option>
+            <option value="ready" data-i18n="status.ready">Ready</option>
+            <option value="doing" data-i18n="status.doing">Doing</option>
+            <option value="review" data-i18n="status.review">Review</option>
+            <option value="post_validation" data-i18n="status.post_validation">Post validation</option>
+            <option value="done" data-i18n="status.done">Done</option>
+            <option value="blocked" data-i18n="status.blocked">Blocked</option>
+            <option value="cancelled" data-i18n="status.cancelled">Cancelled</option>
+          </select></label>
+          <label class="check"><input id="show-inactive" type="checkbox"><span data-i18n="filter.showInactive">Show blocked &amp; cancelled columns</span></label>
+          </div>
+          <div class="toolbar-tools">
+          <label class="filter actor"><span class="actor-label" data-i18n="filter.actor">Acting as</span><span class="actor-chip"><span class="avatar" id="actor-avatar" aria-hidden="true"></span><input id="actor" value="local-user" maxlength="200" autocomplete="off"></span></label>
+          <button id="refresh-button" title="Refresh saved tasks" data-i18n-title="action.refreshTitle"><span class="icon-slot" data-icon="refresh"></span><span data-i18n="action.refresh">Refresh</span></button>
+          </div>
+        </div>
+        <div class="board-meta flex spread"><span id="board-count" data-i18n="board.loading">Loading…</span><span id="updated-at"></span></div>
+        <section id="empty-board" class="empty-board" hidden>
+          <div><h3 data-i18n="empty.title">Give each effort a home</h3><p data-i18n="empty.text">Create a board for a project, team, or area of work. Organize its mini projects into small tasks with clear outcomes and evidence.</p></div>
+          <button id="empty-create" class="primary" data-i18n="action.createBoard">Create a board</button>
+        </section>
+        <div id="board" class="board" aria-label="Task board" data-i18n-aria-label="board.aria"></div>
+        <footer class="footer" data-i18n="footer.text">AgileVow · Explicit status actions · Source fingerprints and revision history</footer>
+      </main>
     </div>
-    <div class="board-meta flex spread"><span id="board-count" data-i18n="board.loading">Loading…</span><span id="updated-at"></span></div>
-    <section id="empty-board" class="empty-board" hidden>
-      <div><h3 data-i18n="empty.title">Give each effort a home</h3><p data-i18n="empty.text">Create a board for a project, team, or area of work. Organize its mini projects into small tasks with clear outcomes and evidence.</p></div>
-      <button id="empty-create" class="primary" data-i18n="action.createBoard">Create a board</button>
-    </section>
-    <div id="board" class="board" aria-label="Task board" data-i18n-aria-label="board.aria"></div>
-    <footer class="footer" data-i18n="footer.text">AgileVow · Explicit status actions · Source fingerprints and revision history</footer>
-  </main>
+  </div>
   <dialog id="editor-dialog" aria-labelledby="editor-title">
     <div class="dialog-head">
       <div><div class="eyebrow" id="editor-eyebrow" data-i18n="editor.eyebrow">Task board</div><h2 id="editor-title" data-i18n="planEditor.new">New mini project</h2></div>

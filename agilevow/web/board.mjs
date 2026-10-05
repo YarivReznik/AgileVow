@@ -2,15 +2,13 @@
 // Task text is always rendered as text; claim tokens never enter DOM or exports.
 // Every user-visible string comes from i18n.mjs. Do not use `t` as a local name below: it is the translator.
 import { t, locale, applyDocumentLocale } from '/i18n.mjs';
+import { icon, initials, hue } from '/icons.mjs';
 
 // A count needs its own one/other strings: "1 boards" is wrong in English and the other locales differ.
 function plural(key, n) { return t(`${key}.${n === 1 ? 'one' : 'other'}`, {n}); }
-function summaryCounts(counts, withBoards) {
-  return [withBoards ? plural('summary.boards', counts.boards) : '', plural('summary.plans', counts.plans),
-    plural('summary.doing', counts.doing), plural('summary.blocked', counts.blocked)].filter(Boolean).join(' · ');
-}
 applyDocumentLocale();
 const $ = id => document.getElementById(id);
+document.querySelectorAll('[data-icon]').forEach(slot => slot.replaceChildren(icon(slot.dataset.icon, Number(slot.dataset.size) || 18)));
 const statuses = ['backlog', 'ready', 'doing', 'review', 'post_validation', 'done', 'blocked', 'cancelled'];
 const statusKeys = {backlog:'status.backlog',ready:'status.ready',doing:'status.doing',review:'status.review',post_validation:'status.post_validation',done:'status.done',blocked:'status.blocked',cancelled:'status.cancelled'};
 const labels = Object.fromEntries(statuses.map(s => [s, t(statusKeys[s])]));
@@ -110,6 +108,44 @@ function populateProjects() {
   const value = $('plan-filter').value, board = $('board-filter').value;
   $('plan-filter').replaceChildren(new Option(t('filter.allPlans'),''), ...state.plans.filter(p => !board || p.board_id === board).map(p => new Option(p.title,p.id))); $('plan-filter').value = value;
 }
+function avatar(name) { const node = el('span', `avatar av${hue(name)}`, initials(name)); node.setAttribute('aria-hidden', 'true'); return node; }
+function emptyAvatar() { const node = el('span', 'avatar av-none'); node.append(icon('user', 14)); node.setAttribute('aria-hidden', 'true'); return node; }
+// The actor is free text, not an account: show it as initials so who is acting is always visible.
+function syncActor() {
+  const name = actor();
+  for (const id of ['whoami-avatar', 'actor-avatar']) { $(id).className = `avatar av${hue(name)}`; $(id).textContent = initials(name); }
+  $('whoami-name').textContent = name;
+}
+function stat(iconName, key, n) {
+  const badge = el('span', `stat-icon stat-${key}`); badge.append(icon(iconName, 20));
+  return append(el('li', 'stat'), badge, append(el('span', 'stat-text'), el('strong', 'stat-value', n), el('span', 'stat-label', plural(`stat.${key}`, n))));
+}
+function navLink(label, count, active, choose) {
+  const item = el('li'), link = el('button', `nav-link${active ? ' active' : ''}`); link.type = 'button'; link.title = label;
+  if (active) link.setAttribute('aria-current', 'true');
+  const text = el('span', 'nav-link-label', label); text.dir = 'auto';
+  append(link, el('span', 'nav-dot'), text, el('span', 'nav-link-count', count));
+  link.addEventListener('click', choose); return append(item, link);
+}
+function chooseBoard(id) { $('board-filter').value = id; $('plan-filter').value = ''; populateProjects(); renderBoard(); }
+function choosePlan(id) { $('plan-filter').value = id; renderBoard(); }
+// The sidebar lists the real boards and mini projects; clicking one is the same as using the filters in the toolbar.
+function renderNav(selectedBoard, selectedPlan) {
+  const open = tk => tk.status !== 'cancelled';
+  const empty = key => append(el('li', 'nav-empty'), el('span', '', t(key)));
+  const boards = state.boards.map(b => navLink(b.title, state.tasks.filter(tk => open(tk) && boardFor(tk)?.id === b.id).length, b.id === selectedBoard?.id, () => chooseBoard(b.id === selectedBoard?.id ? '' : b.id)));
+  const plans = state.plans.filter(pl => !selectedBoard || pl.board_id === selectedBoard.id).map(pl => navLink(pl.title, state.tasks.filter(tk => open(tk) && tk.plan_id === pl.id).length, pl.id === selectedPlan?.id, () => choosePlan(pl.id === selectedPlan?.id ? '' : pl.id)));
+  $('nav-boards').replaceChildren(...(boards.length ? boards : [empty('nav.noBoards')]));
+  $('nav-plans').replaceChildren(...(plans.length ? plans : [empty('nav.noPlans')]));
+}
+function cardFooter(task) {
+  const done = (task.checklist || []).filter(c => c.checked).length, total = task.acceptance?.length || 0;
+  const who = el('span', task.owner ? 'owner' : 'owner unassigned');
+  who.append(task.owner ? avatar(task.owner) : emptyAvatar(), el('span', 'owner-name', task.owner || t('task.unassigned')));
+  const complete = total > 0 && done === total, checks = el('span', `checks${complete ? ' complete' : ''}`, t('card.checked', {done, total}));
+  checks.title = t('card.checkedTitle', {done, total}); if (complete) checks.append(icon('checkCircle', 15));
+  return append(el('div', 'card-bottom'), who, checks);
+}
 function renderBoard() {
   const selectedBoard = state.boards.find(b => b.id === $('board-filter').value);
   const selectedPlan = state.plans.find(p => p.id === $('plan-filter').value);
@@ -119,10 +155,13 @@ function renderBoard() {
   const counts = {boards:state.boards.length,plans:selectedBoard ? state.plans.filter(p => p.board_id === selectedBoard.id).length : state.plans.length,doing:scoped.filter(tk => tk.status === 'doing').length,blocked:scoped.filter(tk => tk.status === 'blocked').length};
   $('summary-eyebrow').textContent = selectedPlan ? `${selectedBoard?.title || state.boards.find(b => b.id === selectedPlan.board_id)?.title || t('common.board')} / ${selectedPlan.kind || t('common.miniProject')}` : selectedBoard?.scope || t('summary.overview');
   $('summary-title').textContent = selectedPlan?.title || selectedBoard?.title || t('summary.titleDefault');
-  $('summary-description').textContent = selectedPlan?.description || selectedBoard?.description || (state.boards.length ? summaryCounts(counts,!selectedBoard) : t('summary.descriptionEmpty'));
+  const description = selectedPlan?.description || selectedBoard?.description || (state.boards.length ? '' : t('summary.descriptionEmpty'));
+  $('summary-description').textContent = description; $('summary-description').hidden = !description;
+  $('summary-stats').replaceChildren(...(state.boards.length ? [...(selectedBoard ? [] : [stat('boards', 'boards', counts.boards)]), stat('folder', 'plans', counts.plans), stat('doing', 'doing', counts.doing), stat('blocked', 'blocked', counts.blocked)] : []));
   $('edit-plan-button').hidden = !selectedPlan;
   $('edit-board-button').hidden = !selectedBoard;
   $('progress-label').textContent = `${complete} / ${active.length}`; $('progress').setAttribute('aria-valuenow',progress); $('progress-value').style.width = `${progress}%`;
+  $('side-progress-label').textContent = `${complete} / ${active.length}`; $('side-ring').style.setProperty('--p', String(progress));
   const search = $('search').value.trim().toLocaleLowerCase();
   const tasks = scoped.filter(tk => !search || [tk.title,tk.key,tk.outcome,tk.next_step,tk.owner,...(tk.tags || []),planFor(tk)?.title,boardFor(tk)?.title].filter(Boolean).join(' ').toLocaleLowerCase().includes(search));
   const chosenStatus = $('status-filter').value;
@@ -130,14 +169,16 @@ function renderBoard() {
   const shown = tasks.filter(tk => visible.includes(tk.status));
   const excluded = tasks.length - shown.length;
   $('board-count').textContent = (shown.length === 1 ? t('board.taskOne') : t('board.taskMany',{n:shown.length})) + (excluded ? t('board.outsideSuffix',{n:excluded}) : '');
+  $('nav-count').textContent = String(shown.length); renderNav(selectedBoard, selectedPlan);
   $('empty-board').hidden = state.boards.length > 0;
   $('board').className = `board${chosenStatus ? ' single' : visible.length > 5 ? ' extra' : ''}`;
   $('board').style.setProperty('--status-columns',String(visible.length));
   $('board').replaceChildren(principlesColumn(selectedBoard,selectedPlan),...visible.map(status => {
     const inColumn = tasks.filter(tk => tk.status === status).sort((a,b) => a.priority-b.priority || new Date(timeValue(a.created_at || 0)).valueOf() - new Date(timeValue(b.created_at || 0)).valueOf());
-    const column = el('section','column'); column.setAttribute('aria-label',`${labels[status]} (${inColumn.length})`);
-    const head = append(el('div','column-header'),el('span',`status-dot status-${status}`),el('h3','',labels[status]),el('span','column-count',inColumn.length));
-    if (['backlog','ready'].includes(status)) { const add = button('+',() => openTaskEditor(status),'column-add'); add.setAttribute('aria-label',t('column.addAria',{status:labels[status].toLocaleLowerCase()})); head.append(add); }
+    const column = el('section','column'); column.dataset.status = status; column.setAttribute('aria-label',`${labels[status]} (${inColumn.length})`);
+    const mark = el('span','status-icon'); mark.append(icon(status,17));
+    const head = append(el('div','column-header'),mark,el('h3','',labels[status]),el('span','column-count',inColumn.length));
+    if (['backlog','ready'].includes(status)) { const add = button('',() => openTaskEditor(status),'column-add'); add.append(icon('plus',16)); add.setAttribute('aria-label',t('column.addAria',{status:labels[status].toLocaleLowerCase()})); head.append(add); }
     const cards = el('div','cards'); cards.append(...inColumn.map(task => {
       const card = button('',() => openTask(task.id),'task-card'); card.dataset.taskId = task.id; card.setAttribute('aria-label',t('card.aria',{title:task.title,status:labels[status],priority:task.priority}));
       const top = append(el('div','card-top'),el('span','task-key',`${scopeFor(task) ? `${scopeFor(task)} / ` : ''}${task.key || task.id}`),el('span',`priority p${task.priority}`,`P${task.priority}`));
@@ -149,7 +190,9 @@ function renderBoard() {
       const waiting = (task.depends_on || []).filter(id => state.tasks.find(tk => tk.id === id)?.status !== 'done').length;
       if (waiting) flags.append(el('span','badge',t('badge.waitingOn',{n:waiting})));
       if (task.blocked_reason && task.status === 'blocked') flags.append(el('span','badge blocked',t('badge.blocked')));
-      append(card,top,el('div','task-title',task.title),selectedPlan ? null : el('div','help',`${selectedBoard ? '' : `${boardFor(task)?.title || t('common.board')} / `}${planFor(task)?.title || t('common.miniProject')}`),el('div','task-outcome',task.next_step || task.outcome),flags.childNodes.length ? flags : null,append(el('div','card-bottom'),el('span','owner',task.owner || t('task.unassigned')),el('span','',t('card.checked',{done:(task.checklist || []).filter(c => c.checked).length,total:task.acceptance?.length || 0}))));
+      append(card,top,el('div','task-title',task.title),selectedPlan ? null : el('div','help',`${selectedBoard ? '' : `${boardFor(task)?.title || t('common.board')} / `}${planFor(task)?.title || t('common.miniProject')}`),el('div','task-outcome',task.next_step || task.outcome),flags.childNodes.length ? flags : null,cardFooter(task));
+      card.querySelectorAll('.task-title,.task-outcome,.help').forEach(node => { node.dir = 'auto'; });
+      const keyNode = card.querySelector('.task-key'); keyNode.title = keyNode.textContent; // a long key is cut with an ellipsis; the whole of it is on hover
       return card;
     }));
     if (!inColumn.length) cards.append(el('div','empty-column',search ? t('column.noMatch') : t('column.none')));
@@ -158,17 +201,22 @@ function renderBoard() {
 }
 function principleCards(principles) {
   return (principles || []).map(p => {
-    const card = append(el('article','principle-card'),el('h4','',p.title),el('p','',p.content));
+    const mark = el('span', 'principle-icon'); mark.append(icon('doc', 20));
+    const card = append(el('article', 'principle-card'), mark, append(el('div', 'principle-text'), el('h4', '', p.title), el('p', '', p.content)));
     card.dir = 'auto'; return card;
   });
 }
 function principlesColumn(selectedBoard,selectedPlan) {
   const column = el('section','column principles-column'); column.id = 'principles-column';
   column.setAttribute('aria-label',t('principles.title'));
-  append(column,append(el('div','column-header'),el('h3','',t('principles.title'))),el('p','help',t('principles.help')));
+  const leaf = el('span', 'status-icon leaf'); leaf.append(icon('leaf', 22));
+  append(column,append(el('div','column-header'),leaf,el('h3','',t('principles.title'))),el('p','help',t('principles.help')));
   const boards = state.boards.filter(b => (!selectedBoard || b.id === selectedBoard.id) && (!selectedPlan || b.id === selectedPlan.board_id) && (!$('scope-filter').value || b.scope === $('scope-filter').value || state.plans.some(p => p.board_id === b.id && p.scope === $('scope-filter').value)));
   for (const board of boards) {
-    const group = append(el('div','principle-group'),el('strong','',board.title),mutationButton(t('principles.edit'),() => openPrinciplesEditor(board),'small'));
+    const group = el('div','principle-group');
+    const edit = mutationButton(t('principles.edit'),() => openPrinciplesEditor(board),'link-button'); edit.append(icon('chevronRight',14));
+    const shield = el('span', 'principle-icon shield'); shield.append(icon('shield', 20));
+    append(group, append(el('div', 'principle-board'), shield, append(el('div', 'principle-text'), el('strong', '', board.title), edit)));
     append(group,...principleCards(board.principles));
     if (!board.principles?.length) group.append(el('p','help',t('principles.none')));
     column.append(group);
@@ -529,6 +577,8 @@ $('board-filter').addEventListener('change',() => { $('plan-filter').value = '';
 $('search').addEventListener('input',renderBoard);
 $('actor').addEventListener('change',() => { try { localStorage.setItem(actorKey,actor()); } catch { /* Optional preference. */ } if ($('task-dialog').open) { notice($('task-error'),t('task.actorChanged'),'warning'); } });
 try { $('actor').value = localStorage.getItem(actorKey) || 'local-user'; } catch { /* Default actor works without storage. */ }
+syncActor(); $('actor').addEventListener('input', syncActor);
+$('nav-tasks').addEventListener('click', event => { event.preventDefault(); chooseBoard(''); });
 // The language is remembered in storage; if storage is blocked it travels in the URL instead.
 $('lang-switch').value = locale;
 $('lang-switch').addEventListener('change',() => {

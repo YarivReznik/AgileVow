@@ -166,7 +166,7 @@ class TaskHTTPTests(unittest.TestCase):
         for raw in (b"[]", b"{not json}", b'{"value":NaN}'):
             code, _, _ = self.call("/api/tasks/create", raw=raw)
             self.assertEqual(code, 400)
-        # Four pages and nothing else: no directory walk, no sibling files, no old names.
+        # Five files and nothing else: no directory walk, no sibling files, no old names.
         for path in ("/board.py", "/../agilevow/board.py", "/web/index.html", "/index.html", "/task-board.html", "/agilevow.sqlite3", "/.agilevow/agilevow.sqlite3"):
             code, _, _ = self.call(path)
             self.assertEqual(code, 404, path)
@@ -179,7 +179,7 @@ class TaskHTTPTests(unittest.TestCase):
         self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
         self.assertEqual(headers["X-Frame-Options"], "DENY")
         self.assertNotIn(b"<style", raw)  # the strict CSP forbids inline style, so the page must not need it
-        for path in ("/board.mjs", "/i18n.mjs", "/board.css"):
+        for path in ("/board.mjs", "/i18n.mjs", "/icons.mjs", "/board.css"):
             code, body, _ = self.call(path)
             self.assertEqual(code, 200, path)
             self.assertTrue(body, path)

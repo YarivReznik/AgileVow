@@ -212,7 +212,7 @@ agilevow/             the package
   manager.py         the read-only audit
   review.py          the post-validation report tool
   mcp.py             the MCP server (stdio)
-  web/               the board page (HTML, CSS, JavaScript, translations)
+  web/               the board page: HTML, CSS, JavaScript, translations (i18n.mjs) and the icon set (icons.mjs)
 tests/             unit tests and one browser test (tests/ui.cjs)
 examples/plan.json a three-task plan to try
 docs/              API.md, WORKFLOW.md, MCP.md, AGENTS-SNIPPET.md

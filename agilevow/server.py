@@ -23,6 +23,7 @@ STATIC = {
     "/board.css": ("board.css", "text/css; charset=utf-8"),
     "/board.mjs": ("board.mjs", "text/javascript; charset=utf-8"),
     "/i18n.mjs": ("i18n.mjs", "text/javascript; charset=utf-8"),
+    "/icons.mjs": ("icons.mjs", "text/javascript; charset=utf-8"),
 }
 # Applied to the page only: Chrome's PDF viewer shows a blank frame for a PDF served with
 # X-Frame-Options DENY, and attachments are served from the same origin.
