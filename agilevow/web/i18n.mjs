@@ -382,6 +382,7 @@ const en = {
 
   // Errors and conflicts
   'error.emptyResponse': 'The server returned an empty or invalid response. Your draft is still here.',
+  'error.actAsSomeoneElse': 'To validate as someone else, close this task, change “Acting as” to their name, and open it again.',
   'error.conflict': 'Saved data changed or the requested action is no longer valid. The board is refreshed below; your draft has been kept.',
   'error.refreshFailed': 'Refresh failed: {message}',
   'conflict.latestRecord': 'Latest saved record — review before saving your draft',
@@ -765,6 +766,7 @@ const he = {
 
   // Errors and conflicts
   'error.emptyResponse': 'השרת החזיר תשובה ריקה או לא תקינה. הטיוטה עדיין כאן.',
+  'error.actAsSomeoneElse': 'כדי לאמת בשם מישהו אחר, יש לסגור את המשימה, לשנות את ״פועל בתור״ לשמו, ולפתוח אותה שוב.',
   'error.conflict': 'הנתונים השמורים השתנו או שהפעולה המבוקשת אינה תקפה עוד. הלוח רוענן מטה; הטיוטה נשמרה.',
   'error.refreshFailed': 'הרענון נכשל: {message}',
   'conflict.latestRecord': 'הרשומה השמורה האחרונה — לבדוק לפני שמירת הטיוטה',

@@ -86,9 +86,10 @@ Claim it with that hash, record evidence for both criteria (0-based index), and 
 
 ```sh
 python3 -m agilevow client claim write-readme --ack-principles 1b39e6769136cebc81fa708a37e4fc4ac93334c23a6f2bd9c897d3352e41c1e0
-echo "Installed from a clean checkout; every command ran." > /path/to/project/notes.md
-python3 -m agilevow client evidence write-readme 0 notes.md --note "Followed the steps on a clean checkout"
-python3 -m agilevow client evidence write-readme 1 notes.md --note "Ran each command and compared the output"
+python3 -m agilevow --help > /path/to/project/help.txt
+python3 -m agilevow client tasks --board demo > /path/to/project/tasks.txt
+python3 -m agilevow client evidence write-readme 0 help.txt --note "What the install step gives you, run from this checkout"
+python3 -m agilevow client evidence write-readme 1 tasks.txt --note "The tasks command's real output, to compare with the listing above"
 python3 -m agilevow client comment write-readme "Kept the install steps to two commands" --kind decision
 ```
 
@@ -99,7 +100,7 @@ task-<id>  doing           write-readme             Write the README
 task-<id>  doing           write-readme             Write the README
 ```
 
-An evidence reference is free text; a path relative to `--root` that exists becomes a link on the board. Tick the criteria that have evidence (a tick is refused without it), then move the card through Review to Post validation:
+Evidence is something a reviewer can open and check: here, the commands' real output saved to files. A sentence saying it worked is a claim, not evidence. An evidence reference is free text; a path relative to `--root` that exists becomes a link on the board. Tick the criteria that have evidence (a tick is refused without it), then move the card through Review to Post validation:
 
 ```sh
 python3 -m agilevow client check write-readme
@@ -115,13 +116,13 @@ task-<id>  post_validation write-readme             Write the README
 agilevow: POST /api/tasks/action: HTTP 409 {"error": "transition from post_validation to done is not allowed"}
 ```
 
-The last refusal is the point: there is no move to Done. Validate instead. `review prepare` writes a report with one pending row per criterion and per principle; fill every row from what you actually inspected, then submit it:
+The last refusal is the point: there is no move to Done. Someone else validates instead: a passing validation from anyone who claimed the card or recorded its evidence, ticks or corrections is refused, so alice cannot pass her own work. Here bob reviews it. `review prepare` writes a report with one pending row per criterion and per principle; fill every row from what you actually inspected, then submit it:
 
 ```sh
 python3 -m agilevow review prepare --task TASK-ID --report /tmp/report.json
 ```
 
-`TASK-ID` is the `task-...` id from `client tasks`; `prepare` refuses to overwrite an existing report file. For each row set `result` (`pass` or `fail`), `method`, `observations` and `evidence` (a list of references); a `fail` also needs `expected`, `avoid` and `fix`. Set `reviewer` and `summary` at the top. Then:
+`TASK-ID` is the `task-...` id from `client tasks`; `prepare` refuses to overwrite an existing report file. For each row set `result` (`pass` or `fail`), `method`, `observations` and `evidence` (a list of references); a `fail` also needs `expected`, `avoid` and `fix`. Set `reviewer` (here `bob`) and `summary` at the top. Then:
 
 ```sh
 python3 -m agilevow review submit --task TASK-ID --report /tmp/report.json
@@ -131,7 +132,7 @@ python3 -m agilevow review submit --task TASK-ID --report /tmp/report.json
 {"task": "task-<id>", "status": "done"}
 ```
 
-With any `fail` row the status would be `review` instead, and the card would carry a correction checklist. [docs/WORKFLOW.md](docs/WORKFLOW.md) walks that loop, and [docs/AGENTS-SNIPPET.md](docs/AGENTS-SNIPPET.md) is a block to paste into an agent's instructions so it uses the board this way.
+With `"reviewer": "alice"` the same report is refused with `alice worked on this task, so cannot pass it`. A failing report from the worker is accepted, since it can only send the card back. With any `fail` row the status would be `review` instead, and the card would carry a correction checklist. [docs/WORKFLOW.md](docs/WORKFLOW.md) walks that loop, and [docs/AGENTS-SNIPPET.md](docs/AGENTS-SNIPPET.md) is a block to paste into an agent's instructions so it uses the board this way.
 
 ## What a card's life looks like
 

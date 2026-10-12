@@ -84,7 +84,7 @@ class TaskHTTPTests(unittest.TestCase):
                        "evidence": [{"criterion": 0, "ref": "docs/brief.md", "note": "Read the retained output"}], "checklist_checks":[{"criterion":0,"checked":True}]})["task"]
         task = self.ok("/api/tasks/action", {"op": "transition", "status": "review", "id": task["id"], "revision": task["revision"], "actor": "worker", "lease": lease})["task"]
         task = self.ok("/api/tasks/action", {"op": "transition", "status": "post_validation", "id": task["id"], "revision": task["revision"], "actor": "worker"})["task"]
-        task = self.ok("/api/tasks/action", {"op":"validate", "id":task["id"],"revision":task["revision"],"actor":"worker","validation":{"result":"pass","summary":"Read and compared output","principles":[],"checks":[{"criterion":0,"passed":True,"observed":"Readable output","ref":"docs/brief.md"}]}})["task"]
+        task = self.ok("/api/tasks/action", {"op":"validate", "id":task["id"],"revision":task["revision"],"actor":"reviewer","validation":{"result":"pass","summary":"Read and compared output","principles":[],"checks":[{"criterion":0,"passed":True,"observed":"Readable output","ref":"docs/brief.md"}]}})["task"]
         self.assertEqual(task["status"], "done")
         exported = self.ok("/api/tasks/export")
         self.assertNotIn(lease, json.dumps(exported))

@@ -82,7 +82,7 @@ The server sends these rules to the client when the session opens, in its `instr
 2. `get_context`, read the principles, then `claim_task` with the hash.
 3. Work. `record_evidence` for every criterion with real results only, then `check_criteria`.
 4. `move_task` to `review` or `post_validation`. There is no move to Done.
-5. Done is reached only by `prepare_review`, inspecting the work and filling every row honestly, then `submit_review`.
+5. Done is reached only by `prepare_review`, inspecting the work and filling every row honestly, then `submit_review`, by someone other than the worker: the agent may fail its own card, but a pass must come from a second agent or a person.
 6. `release_task` with a note before switching to other work.
 
 ## What is deliberately missing
@@ -94,7 +94,13 @@ The server sends these rules to the client when the session opens, in its `instr
 
 ## Limits
 
-- **The validator can be the worker.** `submit_review` records whoever the report names as reviewer. Nothing stops the agent that did the work from validating it, the same as on the command line. If you need a second pair of eyes, have a different actor (or you) run `prepare_review` and `submit_review`. See [SECURITY.md](../SECURITY.md).
+- **The worker cannot pass its own card.** `submit_review` validates as the actor this server runs as (the report's `reviewer` is replaced by it), and the board refuses a passing validation from anyone who claimed the card or recorded its evidence, ticks or corrections. The agent may submit a failing review of its own card. To reach Done, register a second server with its own actor and let that agent (or you, in the browser or with `review submit`) review it:
+
+  ```sh
+  claude mcp add agilevow-review -e AGILEVOW_ACTOR=reviewer -- agilevow mcp
+  ```
+
+  Actor names are not authenticated, so this stops the default path of an agent grading itself, not one configured to pose as someone else. See [SECURITY.md](../SECURITY.md).
 - **Tools only.** No MCP resources or prompts, no sampling, no logging capability. Tool output over 100,000 characters is truncated with a note.
 - **Protocol versions** `2025-06-18`, `2025-03-26` and `2024-11-05` are accepted; the client's version is echoed when it is one of these, otherwise the newest is offered. Messages are one JSON object per line, and batches are accepted.
 - **Not yet run against an official MCP client SDK or a shipping client.** The test suite drives the server with a hand-written client over real pipes, and checks the framing, the handshake, the schemas and the whole claim-to-Done loop. If a client rejects it, that is a bug to report.

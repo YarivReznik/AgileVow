@@ -14,7 +14,9 @@ class WorkflowTests(unittest.TestCase):
         self.plan=self.store.create_plan({'actor':'user','board_id':self.board['id'],'source_key':'a','title':'Plan'})['plan']
         self.task=self.store.create_task({'actor':'user','plan_id':self.plan['id'],'key':'a','title':'Task','outcome':'A stable visual','acceptance':['Result is visible'],'status':'ready'})['task']
     def act(self,op,**values):
-        req={'actor':'worker','id':self.task['id'],'revision':self.task['revision'],'op':op,**values}
+        # a passing validation must come from someone who did not do the work (see test_board), so the reviewer validates
+        if op=='validate':values.setdefault('principles_sha256',self.digest())  # the reviewer reads the principles too
+        req={'actor':'reviewer' if op=='validate' else 'worker','id':self.task['id'],'revision':self.task['revision'],'op':op,**values}
         result=self.store.action(req);self.task=result['task'];return result
     def update(self,**values):
         self.task=self.store.update_task({'actor':'worker','id':self.task['id'],'revision':self.task['revision'],**values})['task']

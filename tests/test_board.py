@@ -51,8 +51,46 @@ class TaskBoardTests(unittest.TestCase):
 
     def validate_done(self, task):
         task = self.action(task, "transition", status="post_validation")["task"]
-        return self.action(task, "validate", validation={"result":"pass","summary":"Inspected all outputs", "principles":[],
+        return self.action(task, "validate", actor="reviewer", validation={"result":"pass","summary":"Inspected all outputs", "principles":[],
             "checks":[{"criterion":i,"passed":True,"observed":"Matches the intended result","ref":"capture"} for i in range(len(task["acceptance"]))]})["task"]
+
+    def pass_report(self, task):
+        return {"result": "pass", "summary": "Inspected all outputs", "principles": [],
+                "checks": [{"criterion": i, "passed": True, "observed": "Matches", "ref": "capture"} for i in range(len(task["acceptance"]))]}
+
+    def finished(self, task, actor="worker"):
+        """Claim, evidence, tick and hand over to Post validation, all as `actor`."""
+        claim = self.action(task, "claim", actor=actor)
+        task = self.update(claim["task"], actor=actor, lease=claim["lease"], evidence=[{"criterion": 0, "ref": "capture", "note": "Observed"}],
+                           checklist_checks=[{"criterion": 0, "checked": True}])
+        task = self.action(task, "transition", actor=actor, status="review", lease=claim["lease"])["task"]
+        return self.action(task, "transition", actor=actor, status="post_validation")["task"]
+
+    def test_a_passing_validation_needs_someone_who_did_not_work_on_the_task(self):
+        task = self.finished(self.task())
+        for name in ("worker", " Worker ", "WORKER"):      # the owner, however the name is typed
+            with self.assertRaisesRegex(TaskError, "worked on this task") as caught:
+                self.action(task, "validate", actor=name, validation=self.pass_report(task))
+            self.assertEqual(caught.exception.status, 403)   # forbidden, not a conflict: retrying will not help
+        self.assertEqual(self.store.get_task(task["id"])["task"]["status"], "post_validation")
+        done = self.action(task, "validate", actor="reviewer", validation=self.pass_report(task))["task"]
+        self.assertEqual(done["status"], "done")
+
+    def test_the_worker_may_still_fail_its_own_task(self):
+        task = self.finished(self.task())
+        report = {"result": "fail", "summary": "It does not hold yet", "principles": [],
+                  "checks": [{"criterion": 0, "passed": False, "observed": "Not visible", "ref": "capture",
+                              "expected": "Visible", "avoid": "Claiming it is", "fix": "Make it visible"}]}
+        self.assertEqual(self.action(task, "validate", actor="worker", validation=report)["task"]["status"], "review")
+
+    def test_anyone_who_ever_claimed_the_task_cannot_pass_it(self):
+        task = self.task()
+        first = self.action(task, "claim", actor="first")
+        self.action(first["task"], "release", actor="first", lease=first["lease"], note="Handing it on")
+        task = self.finished(self.store.get_task(task["id"])["task"], actor="second")
+        with self.assertRaisesRegex(TaskError, "worked on this task"):
+            self.action(task, "validate", actor="first", validation=self.pass_report(task))
+        self.assertEqual(self.action(task, "validate", actor="reviewer", validation=self.pass_report(task))["task"]["status"], "done")
 
     def assert_error(self, expected_status, call, *args, **kwargs):
         with self.assertRaises(TaskError) as caught:
@@ -336,7 +374,7 @@ class TaskBoardTests(unittest.TestCase):
         self.done(prerequisite)
         dependent=self.store.get_task(dependent["id"])["task"]
         if dependent["status"] == "post_validation":
-            result=self.action(dependent,"validate",validation={"result":"pass","summary":"Rechecked after dependency","principles":[],"checks":[{"criterion":0,"passed":True,"observed":"Dependency is complete","ref":"capture"}]})["task"]
+            result=self.action(dependent,"validate",actor="reviewer",validation={"result":"pass","summary":"Rechecked after dependency","principles":[],"checks":[{"criterion":0,"passed":True,"observed":"Dependency is complete","ref":"capture"}]})["task"]
         else:
             result=self.validate_done(dependent)
         self.assertEqual("done",result["status"])

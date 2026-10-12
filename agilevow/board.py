@@ -49,6 +49,8 @@ TASK_FIELDS = {"key", "title", "outcome", "acceptance", "depends_on", "priority"
                "status", "owner", "next_step", "blocked_reason", "links", "evidence", "sources", "tags"}
 EDIT_FIELDS = (TASK_FIELDS - {"key", "status", "blocked_reason"}) | {"checklist_checks", "correction_checks"}
 CORRECTION_FIELDS = {"outcome", "acceptance", "depends_on", "sources"}
+# Recording any of these on a card is doing its work, so whoever records them cannot pass its validation.
+WORK_CHANGES = {"evidence", "checklist_checks", "corrections"}
 
 
 class TaskError(ValueError):
@@ -923,6 +925,23 @@ class TaskBoard:
         if any(not c.get("checked") for c in task.get("corrections", [])):
             raise TaskError("finish and verify every correction checklist item before Post validation", 409)
 
+    def _independent_validator(self, db, task, actor):
+        """Done is signed off by someone who did not do the work: not the card's owner, and not anyone who ever claimed it
+        or recorded its evidence, ticks or corrections (as far back as its retained history goes). Names are compared
+        without case or extra spaces. Actor names are asserted, not authenticated, so this removes the default path of an
+        agent passing its own work; it cannot stop one that lies about its name. A failing report is still accepted from
+        the worker: it can only send its own card back."""
+        events = self._events(db.execute("SELECT id, body FROM task_events WHERE task_id=? ORDER BY id", (task["id"],)).fetchall())
+        # Work is a claim, or an edit that set evidence, ticks or corrections. A validation, or a correction that only
+        # clears evidence (correct_task, plan_source_correction), is not work: its author stays free to validate.
+        workers = {task.get("owner") or ""} | {event.get("actor") or "" for event in events
+                                                 if event.get("op") == "claim"
+                                                 or (event.get("op") == "update_task" and WORK_CHANGES & set(event.get("changes") or ()))}
+        same = lambda name: " ".join(str(name).split()).casefold()
+        if same(actor) in {same(name) for name in workers if name}:
+            raise TaskError(f"{actor} worked on this task, so cannot pass it: a passing validation must come from someone who "
+                            "never claimed it or recorded its evidence, ticks or corrections", 403)
+
     def _validate_result(self, db, task, req, actor):
         value = req.get("validation")
         if not isinstance(value, dict) or set(value) != {"result", "summary", "checks", "principles"}:
@@ -1027,6 +1046,8 @@ class TaskBoard:
                 self._execution_complete(task)
                 self._dependencies_done(db, task)
                 validation = self._validate_result(db, task, req, actor)
+                if validation["result"] == "pass":
+                    self._independent_validator(db, task, actor)
                 note = validation["summary"]
                 lease_hash = None
                 changes = ["status", "validations", "corrections", "checklist_checks", "next_step"]

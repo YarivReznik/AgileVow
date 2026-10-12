@@ -288,6 +288,7 @@ Moving to `post_validation` requires the execution to be complete (above). Then 
 - `checks` has exactly one entry per acceptance criterion; `principles` has exactly one per current principle, by `key` (an empty array on a board without principles). Missing, unknown or duplicate entries are rejected.
 - `observed` and `ref` are required on every entry. A failed entry (`passed: false`) also requires `expected` (a correct example), `avoid` (an unwanted example) and `fix` (the repair), each up to 4000 characters.
 - `result` must agree with the entries: `pass` only if all passed, `fail` if any failed.
+- A `pass` must come from someone who did not work on the card: not its `owner`, and not anyone who ever claimed it or recorded its evidence, ticks or corrections (as far back as the retained history goes). Names are compared without case or extra spaces. Otherwise `403`, `ACTOR worked on this task, so cannot pass it`. A `fail` is accepted from the worker, since it can only send the card back. Actor names are asserted, not authenticated: this removes the default path of an agent passing its own work, not an agent that lies about its name.
 - The server re-checks that execution is complete, dependencies are done and sources are unchanged.
 - Nothing requires `actor` to differ from the worker. Separating them is a convention of your process.
 

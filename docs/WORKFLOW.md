@@ -89,9 +89,9 @@ python3 -m agilevow review submit  --task TASK-ID --report /tmp/report.json
 
 `result` is `pass` or `fail`. `method`, `observations` and at least one `evidence` reference are required on every row, failures included. A `fail` also needs `expected` (a correct example), `avoid` (an unwanted example) and `fix` (what to change). A principle that does not apply to this task still needs a row: say why it is unaffected and cite something inspectable; do not claim unrelated work is done.
 
-`submit` refuses a pending row, a report prepared against an older revision of the card, principles that changed since `prepare`, changed sources, and a report over about 11,000 characters. Otherwise it stores the whole report as a `decision` comment on the card and sends the `validate` action. The first evidence reference of each row goes into the validation record; the comment keeps them all. Its errors surface as Python tracebacks.
+`submit` refuses a pending row, a report prepared against an older revision of the card, principles that changed since `prepare`, changed sources, and a report over about 11,000 characters. Otherwise it sends the `validate` action and then stores the whole report as a `decision` comment on the card, so a refused report leaves nothing behind. The first evidence reference of each row goes into the validation record; the comment keeps them all. Its errors surface as Python tracebacks.
 
-Nothing in the server stops the worker from validating its own work. Use a second agent or a person when the check should be independent.
+The reviewer must be someone who did not work on the card. A passing report from its owner, or from anyone who claimed it or recorded its evidence, ticks or corrections, is refused (`403`). The worker can still submit a failing report against its own card. Use a second agent with its own actor name, or a person.
 
 **9. After a pass the card is Done.** Run the manager again; any card that was waiting on this one can now become Ready (`client move OTHER ready`).
 

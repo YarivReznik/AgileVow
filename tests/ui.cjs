@@ -68,10 +68,11 @@ function findLeaks({scope, ignore}) {
   const errors = []; page.on('pageerror',err=>errors.push(err.message));
   // A failed request is a console error too (a 404 for a favicon, a blocked script): none is allowed.
   // The one refusal the conflict step below provokes on purpose is expected, and counted; any other is an error.
-  let expectConflict = false; const conflicts = [];
+  let expectConflict = false; const conflicts = []; let expectRefusal = false; const refusals = [];
   page.on('console',msg=>{ if (msg.type() !== 'error') return;
     const line = `console: ${msg.text()} (${msg.location().url})`;
-    if (expectConflict && /409/.test(msg.text()) && msg.location().url.endsWith('/api/tasks/update')) conflicts.push(line); else errors.push(line); });
+    if (expectConflict && /409/.test(msg.text()) && msg.location().url.endsWith('/api/tasks/update')) conflicts.push(line);
+    else if (expectRefusal && /403/.test(msg.text()) && msg.location().url.endsWith('/api/tasks/action')) refusals.push(line); else errors.push(line); });
   await page.goto(base+'/');
   await pauseUntil(async()=>/tasks/.test(await page.locator('#board-count').textContent()));   // the count lives in the "..." menu, hidden until opened
   await page.locator('#actor').fill('Zoë Ünal');
@@ -146,7 +147,7 @@ function findLeaks({scope, ignore}) {
   passed('Unicode owner claims, uploads and conversation records retain content');
   assert(await page.locator('a[href*="/api/tasks/artifact?"]').count() >= 1);
   await act('Send to review');await act('Finish work → Post validation');
-  const validate = async failPrinciple => {
+  const fillValidation = async failPrinciple => {
     const section=page.locator('.validation-section');
     await section.locator('[name="validation_summary"]').fill(failPrinciple?'Idle flashing violates the binding principle':'Replayed output meets all goals and principles');
     for(let i=0;i<3;i++){
@@ -161,9 +162,15 @@ function findLeaks({scope, ignore}) {
       }
     }
     await section.getByRole('button',{name:'Save the validation and continue according to the result',exact:true}).click();
-    await pauseUntil(async()=> (await api('/api/tasks/item?id='+taskId)).task.status===(failPrinciple?'review':'done'));
+    return section;
+  };
+  const validate = async failPrinciple => {
+    const section = await fillValidation(failPrinciple);
+    try { await pauseUntil(async()=> (await api('/api/tasks/item?id='+taskId)).task.status===(failPrinciple?'review':'done')); }
+    catch { throw Error('the validation did not land; the page said: ' + await section.locator('.notice.error').innerText().catch(()=>'(nothing)')); }
     await section.waitFor({state:'detached'});
   };
+  const actAs = async name => { await page.locator('#actor').fill(name); await page.locator('#actor').dispatchEvent('change'); };
   await page.screenshot({path:path.join(output,'post-validation.png')});
   await validate(true);
   task=(await api('/api/tasks/item?id='+taskId)).task;
@@ -174,8 +181,24 @@ function findLeaks({scope, ignore}) {
   await page.locator(`[name="correction_${correction.id}"]`).check();
   await page.locator(`[name="correction_note_${correction.id}"]`).fill('Removed idle pulse; replayed the stable border');
   await page.locator(`[name="correction_ref_${correction.id}"]`).fill('docs/brief.md');
-  await act('Save task details');await act('Finish work → Post validation');await validate(false);
+  await act('Save task details');await act('Finish work → Post validation');
+  // The worker may fail its own work (above) but cannot pass it: the page says why and the card stays in Post validation.
+  expectRefusal = true;
+  await fillValidation(false);
+  const refusal = page.locator('.validation-section .notice.error').filter({hasText:'worked on this task'});
+  await refusal.waitFor();
+  expectRefusal = false; assert.equal(refusals.length,1,'the worker passing its own card must be refused exactly once');
+  assert.doesNotMatch(await refusal.innerText(),/conflict|stale|no longer valid/i,'a refusal is not shown as an edit conflict');
+  assert.match(await refusal.innerText(),/change “Acting as”/,'the refusal says how to act as someone else');
+  assert.equal((await api('/api/tasks/item?id='+taskId)).task.status,'post_validation');
+  // What a reviewer does: close the task (the page behind an open task cannot be edited), act as yourself, reopen it.
+  const reopenAs = async name => { await page.locator('[data-close="task-dialog"]').click(); await actAs(name);
+    await page.locator('.task-card',{hasText:'Make the next step clear'}).click(); await page.locator('#task-dialog[open]').waitFor(); };
+  await reopenAs('Rina Reviewer');
+  await validate(false);
+  await reopenAs('Zoë Ünal');
   passed('Post validation checks goals AND principles; failure returns to Review with explicit correction checklist; repaired work is retested before Done');
+  passed('A passing validation must come from someone other than the worker; the worker can still fail its own card');
   assert.equal((await api('/api/tasks/item?id='+taskId)).task.status,'done');
   passed('Claim, evidence, review and completion use the same HTTP lifecycle');
   await page.locator('[data-close="task-dialog"]').click();

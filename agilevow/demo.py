@@ -23,7 +23,6 @@ from .client import Board, BoardError
 from .server import DEFAULT_PORT, make_server
 
 DEFAULT_DIR = "agilevow-demo"
-NOTES = "notes.md"
 
 PRINCIPLES = [
     {"key": "evidence-first", "title": "Evidence before claims",
@@ -85,21 +84,50 @@ LAUNCH = {
 BOARD = {"source_key": "api-hardening", "title": "API hardening", "scope": "backend",
          "description": "Make the public API safe to put in front of customers."}
 
-NOTES_TEXT = """# Sample evidence
+SAMPLE = "Sample evidence for the AgileVow demo board. It is made up; delete the folder to start over.\n\n"
+_RUNS = "\n".join(f"run {n:>2}  2026-10-0{1 + n // 10}  login-test  passed  {38 + n % 7}s" for n in range(1, 51))
+_REQUESTS = "\n".join(f"{n:>3}  HTTP/1.1 200 OK" for n in (1, 2, 3)) + "\n...\n" + "\n".join(f"{n:>3}  HTTP/1.1 200 OK" for n in (99, 100))
+# Each card's evidence is output a reviewer can open and check against the criterion, never a sentence saying it worked.
+FILES = {
+    "evidence/routes.txt": SAMPLE + """$ app routes --auth
+METHOD  PATH                 AUTH     RATE LIMIT
+GET     /v1/health           none     none
+GET     /v1/status           none     none
+POST    /v1/webhooks/stripe  signed   none
+GET     /v1/projects         api-key  100/min
+POST    /v1/projects         api-key  100/min
+GET     /v1/projects/{id}    api-key  100/min
+DELETE  /v1/projects/{id}    api-key  100/min
 
-This file is the evidence behind the sample cards on the demo board. Evidence is a reference plus a note; a
-file inside the project folder becomes a link on the card, so a reviewer can open it.
+7 routes. Without an API key: /v1/health, /v1/status, /v1/webhooks/stripe (signature checked instead).
+""",
+    "evidence/retry-policy.md": SAMPLE + """# Client retry policy
 
-Nothing here is real work. Delete this folder to start over.
-"""
-
-# What the agent wrote against each criterion, for the cards that have evidence.
+- Retry GET, HEAD, PUT and DELETE on 429, 502, 503 and 504, and on connection resets.
+- Never retry POST or PATCH unless the request carries an Idempotency-Key.
+- Back off 0.5 s, 1 s, 2 s, 4 s with full jitter; stop after 4 tries or 30 s.
+- On 429, wait for Retry-After when the server sends it.
+""",
+    "evidence/sdk-tests.txt": SAMPLE + """$ pytest tests/test_retry.py -q
+test_retries_idempotent_get_on_503 PASSED
+test_never_retries_post_without_idempotency_key PASSED
+test_retries_post_with_idempotency_key PASSED
+test_backoff_has_jitter_and_stops_after_four_tries PASSED
+test_honours_retry_after_on_429 PASSED
+5 passed in 0.84s
+""",
+    "evidence/ci-runs.txt": SAMPLE + "$ ci runs --job login-test --last 50\n" + _RUNS + "\n\n50 of 50 passed, consecutive.\n",
+    "evidence/rate-limit.txt": SAMPLE + "$ for i in $(seq 101); do curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer test-key' localhost:8080/v1/projects; done\n"
+                               + _REQUESTS + "\n101  HTTP/1.1 429 Too Many Requests\n     (no Retry-After header yet)\n",
+}
+# (file, note) per criterion, for the cards that have evidence.
 EVIDENCE = {
-    "audit-endpoints": ["Listed every route from the router; the table is in the audit section.",
-                        "Marked the three unauthenticated routes."],
-    "retry-policy": ["The policy is the first section of the document.", "SDK retry tests pass; the output is attached."],
-    "fix-flaky-test": ["50 consecutive green CI runs, listed with their links."],
-    "rate-limit": ["Observed the 429 after 100 requests."],
+    "audit-endpoints": [("evidence/routes.txt", "All 7 routes from the router, with their auth and rate limit."),
+                        ("evidence/routes.txt", "The three routes without an API key are marked none or signed.")],
+    "retry-policy": [("evidence/retry-policy.md", "The written policy."),
+                     ("evidence/sdk-tests.txt", "The SDK's retry tests, all passing.")],
+    "fix-flaky-test": [("evidence/ci-runs.txt", "The last 50 runs of the login test, all green and consecutive.")],
+    "rate-limit": [("evidence/rate-limit.txt", "101 requests in a minute: the 101st returns 429.")],
 }
 
 
@@ -109,8 +137,7 @@ def _claim(worker, key, plan):
 
 
 def _evidence(worker, task):
-    notes = EVIDENCE[task["key"]]
-    return worker.set_evidence(task, *[(i, NOTES, note) for i, note in enumerate(notes)])
+    return worker.set_evidence(task, *[(i, ref, note) for i, (ref, note) in enumerate(EVIDENCE[task["key"]])])
 
 
 def _finish_work(worker, task):
@@ -128,10 +155,10 @@ def _story(worker, reviewer):
     reviewer.action(task, "validate", principles_sha256=digest, validation={
         "result": "pass",
         "summary": "Opened the evidence for both criteria and both principles; each holds.",
-        "checks": [{"criterion": i, "passed": True, "observed": "Opened the evidence and compared it with the router.", "ref": NOTES}
-                   for i in range(len(task["acceptance"]))],
-        "principles": [{"key": p["key"], "passed": True, "observed": "The evidence is a file a reviewer can open; the change is one diff.", "ref": NOTES}
-                       for p in PRINCIPLES]})
+        "checks": [{"criterion": 0, "passed": True, "observed": "Counted 7 routes in routes.txt and matched them against the router file.", "ref": "evidence/routes.txt"},
+                   {"criterion": 1, "passed": True, "observed": "health, status and the Stripe webhook are the only routes without an API key, and each is marked.", "ref": "evidence/routes.txt"}],
+        "principles": [{"key": "evidence-first", "passed": True, "observed": "Both criteria point at the captured route table, not at a statement.", "ref": "evidence/routes.txt"},
+                       {"key": "small-changes", "passed": True, "observed": "One audit, one file; no unrelated change rode along.", "ref": "evidence/routes.txt"}]})
     # Post validation: finished, waiting for a reviewer.
     task = _claim(worker, "retry-policy", "hardening-sprint")
     task = _finish_work(worker, _evidence(worker, task))
@@ -151,9 +178,11 @@ def seed(url, root):
     leases = Path(root) / task_board.DATA_DIR / "leases.json"
     worker = Board(actor="agent-1", url=url, leases=leases)
     reviewer = Board(actor="reviewer", url=url, leases=Path(root) / task_board.DATA_DIR / "leases-reviewer.json")
-    notes = Path(root) / NOTES
-    if not notes.exists():          # never overwrite a file somebody already has
-        notes.write_text(NOTES_TEXT, encoding="utf-8")
+    for name, text in FILES.items():
+        path = Path(root) / name
+        if not path.exists():       # never overwrite a file somebody already has
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
     board = worker.create_board(BOARD["source_key"], BOARD["title"], BOARD["description"], BOARD["scope"], PRINCIPLES)
     worker.import_plan(board, HARDENING)
     worker.import_plan(board, LAUNCH)

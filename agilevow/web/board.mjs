@@ -79,7 +79,9 @@ async function performMutation(work, errorNode, onSuccess) {
   if (state.busy) return; setBusy(true);
   try { const result = await work(); await onSuccess(result); }
   catch (err) {
-    notice(errorNode, err.message + (err.status === 409 ? '\n' + t('error.conflict') : ''));
+    // 409: the saved data moved on (refresh and keep the draft). 403: who is acting may not do this (the only one the page can
+    // meet is passing a task you worked on), so say how to act as someone else.
+    notice(errorNode, err.message + (err.status === 409 ? '\n' + t('error.conflict') : err.status === 403 ? '\n' + t('error.actAsSomeoneElse') : ''));
     if (err.status === 409) {
       try {
         await refresh();

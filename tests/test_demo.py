@@ -56,18 +56,22 @@ class SeedTests(unittest.TestCase):
         done = next(t for t in snap["tasks"] if t["status"] == "done")
         events = get(self.url + "/api/tasks/item?" + urllib.parse.urlencode({"id": done["id"]}))["events"]
         self.assertIn("reviewer", {e.get("actor") for e in events})
-        # the evidence points at a file that exists, so the board shows it as a link
-        self.assertTrue((self.root / demo.NOTES).is_file())
-        self.assertEqual({e["ref"] for t in snap["tasks"] for e in t["evidence"]}, {demo.NOTES})
+        # every piece of evidence is a file a reviewer can open (so the board links it), marked as sample data
+        refs = {e["ref"] for t in snap["tasks"] for e in t["evidence"]}
+        self.assertEqual(refs, set(demo.FILES))
+        for ref in refs:
+            self.assertTrue((self.root / ref).read_text().startswith("Sample evidence"), ref)
         # the lease token behind the Doing card is kept owner-only
         leases = self.root / ".agilevow" / "leases.json"
         self.assertEqual(stat.S_IMODE(leases.stat().st_mode), 0o600)
         self.assertIn(doing["id"], json.loads(leases.read_text()))
 
-    def test_an_existing_notes_file_is_never_overwritten(self):
-        (self.root / demo.NOTES).write_text("mine\n")
+    def test_an_existing_file_is_never_overwritten(self):
+        mine = self.root / "evidence" / "routes.txt"
+        mine.parent.mkdir()
+        mine.write_text("mine\n")
         demo.seed(self.url, self.root)
-        self.assertEqual((self.root / demo.NOTES).read_text(), "mine\n")
+        self.assertEqual(mine.read_text(), "mine\n")
 
 
 class DemoCommandTests(unittest.TestCase):

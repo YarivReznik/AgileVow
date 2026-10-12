@@ -31,7 +31,7 @@ INSTRUCTIONS = """AgileVow is a task board with a strict workflow. Follow it exa
 2. get_context before claiming: it holds the board's binding principles and their hash. Read them, then claim_task with that principles_sha256.
 3. Work, then record_evidence for every acceptance criterion (numbered from 0) using real results only, then check_criteria.
 4. move_task to review or post_validation. There is no move to done and no workaround.
-5. A card is Done only through prepare_review, then inspecting the work and filling every row honestly, then submit_review. A failure returns the card to review with a repair list.
+5. A card is Done only through prepare_review, then inspecting the work and filling every row honestly, then submit_review. A failure returns the card to review with a repair list. A passing review must come from someone who did not work on the card: you may fail your own work, but to pass it ask the user, or a second agent with its own actor, to review it.
 6. release_task with a note before you switch to other work. Never invent or reconstruct evidence."""
 
 
@@ -192,12 +192,14 @@ def t_audit_board(board, args):
 
 
 def t_prepare_review(board, args):
-    return review.prepare(board.fresh(_find(board, args)))
+    return dict(review.prepare(board.fresh(_find(board, args))), reviewer=board.actor)
 
 
 def t_submit_review(board, args):
     found = board.fresh(_find(board, args))
-    done = review.submit(_api(board), found, args["report"])
+    # Over MCP the reviewer is the actor this server runs as, whatever the report says: an agent refused for passing its
+    # own card must not be able to try again under another name typed into the report.
+    done = review.submit(_api(board), found, dict(args["report"], reviewer=board.actor))
     return {"task": _brief(done, _plans(board)), "status": done["status"],
             "next": "Done." if done["status"] == "done" else "A check failed: the card is back in review with a repair list. Claim it, fix it, and validate again."}
 
@@ -259,7 +261,7 @@ def build_tools():
               "For a task in post_validation: return a validation report with one pending row per acceptance criterion and per binding principle. Inspect the actual work, then fill every row with what you observed and pass the report to submit_review.",
               _obj({"task": TASK, "plan": PLAN}, ["task"]), t_prepare_review, read_only=True),
         _tool("submit_review", "Submit a validation report",
-              "Submit the filled report. Every criterion and every principle needs result pass or fail, a method, what you actually observed, and evidence; a fail also needs expected, avoid and fix. All pass: the card is Done. Any fail: it returns to review with a repair list. Do not validate work you did not inspect.",
+              "Submit the filled report. Every criterion and every principle needs result pass or fail, a method, what you actually observed, and evidence; a fail also needs expected, avoid and fix. All pass: the card is Done. Any fail: it returns to review with a repair list. Do not validate work you did not inspect. The reviewer is the actor this server runs as; a passing review of a card that actor worked on is refused.",
               _obj({"task": TASK, "plan": PLAN, "report": {"type": "object", "description": "The report from prepare_review, with reviewer and summary set and every row completed."}}, ["task", "report"]),
               t_submit_review),
         _tool("import_plan", "Import a plan",

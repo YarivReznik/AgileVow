@@ -199,9 +199,10 @@ class LiveTools(unittest.TestCase):
 
         report = self.ok("prepare_review", task="write-readme")
         self.assertEqual([len(report["checks"]), len(report["principles"])], [2, 1])
+        self.assertEqual(report["reviewer"], "claude")  # over MCP the reviewer is the actor this server runs as
         is_error, blank = self.call("submit_review", task="write-readme", report=report)
-        self.assertEqual((is_error, blank), (True, "Reviewer is required"))  # a blank report is refused outright
-        report.update(reviewer="claude", summary="Inspected both criteria and the principle")
+        self.assertEqual((is_error, blank), (True, "Validation summary is required"))  # a blank report is refused outright
+        report.update(summary="Inspected both criteria and the principle")
         is_error, pending = self.call("submit_review", task="write-readme", report=report)
         self.assertTrue(is_error)  # and so is one with every row still pending: nothing is validated until each is filled
         self.assertIn("Pending", pending)
@@ -209,7 +210,13 @@ class LiveTools(unittest.TestCase):
 
         for row in report["checks"] + report["principles"]:
             row.update(result="pass", method="Read notes.md", observations="It matches what the task asked for", evidence=["notes.md"])
-        done = self.ok("submit_review", task="write-readme", report=report)
+        is_error, refused = self.call("submit_review", task="write-readme", report=dict(report, reviewer="someone-else"))
+        self.assertTrue(is_error)  # the agent that did the work cannot pass it, not even by typing another name into the report
+        self.assertIn("worked on this task", refused)
+        self.assertEqual(self.ok("get_task", task="write-readme")["status"], "post_validation")
+        worker, self.server = self.server, mcp.Server(Board(actor="reviewer", url=self.url, leases=self.root / "reviewer-leases.json"))
+        done = self.ok("submit_review", task="write-readme", report=report)  # a second agent, with its own actor, passes it
+        self.server = worker
         self.assertEqual(done["status"], "done")
         self.assertEqual(self.ok("list_tasks", status="done")["count"], 1)
         self.assertEqual(self.ok("move_task", task="cut-release", status="ready")["task"]["status"], "ready")  # its dependency is done
