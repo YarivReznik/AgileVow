@@ -18,7 +18,7 @@ CSS = (Path(__file__).resolve().parent.parent / "agilevow" / "web" / "board.css"
 SAME_IN_BOTH = {"radius", "radius-lg", "av-backlog", "av-ready", "av-doing", "av-review", "av-post_validation",
                 "av-done", "av-blocked", "av-cancelled"}
 # Set per element by the page's own rules or script, never in :root.
-SET_ELSEWHERE = {"p", "status-columns", "tint", "tint-top", "accent", "av"}
+SET_ELSEWHERE = {"p", "status-columns", "tint", "tint-top", "accent", "av", "select-width"}
 
 
 def block(start, end="\n}\n"):

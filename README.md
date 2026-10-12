@@ -15,14 +15,21 @@ When the same agent does the work and reports on it, nothing stops it from decla
 
 It is one Python package with no dependencies, a SQLite file for storage, a JSON API, a web board and a small CLI. It does not start agents or schedule work: it records what happened and refuses transitions that skip the discipline.
 
-## Quickstart
+## Try it
 
-Requires Python 3.9 or newer on macOS or Linux. Clone the repository and stay in its folder; every command below runs from there. (`pip install .` also installs a `agilevow` command that replaces `python3 -m agilevow`.)
+Python 3.9 or newer on macOS or Linux. Nothing to install, and no database to set up: it is a SQLite file the server creates on first run.
 
 ```sh
 git clone https://github.com/YarivReznik/ai-kanban.git
 cd ai-kanban
+python3 -m agilevow demo
 ```
+
+That creates `agilevow-demo/` (ignored by git), fills it with a sample board, eleven tasks from Backlog to Done, and opens <http://127.0.0.1:8765/>. Every card got where it is through the API, by the same rules an agent follows: claimed with a lease, evidence for each criterion, a validation report before Done. Delete the folder to start over. `--dir` and `--port` change where it lives, `--no-open` skips the browser, and a folder that already has boards is served as it is, never filled again.
+
+## Quickstart
+
+Your own board, from the command line. Stay in the clone; every command below runs from there. (`pip install .` also installs a `agilevow` command that replaces `python3 -m agilevow`.)
 
 Terminal 1, serve a project folder (it must already exist; a mistyped path is refused, not created):
 
@@ -143,6 +150,7 @@ All commands: `python3 -m agilevow <command>`. Run `--help` on any of them.
 
 | Command | What it does |
 | --- | --- |
+| `demo [--dir DIR] [--port N] [--no-open]` | A sample board in its own folder (default `./agilevow-demo`), filled through the API and served. |
 | `serve` | Run the board and API on 127.0.0.1. |
 | `client boards` | List boards. |
 | `client create-board KEY TITLE [--description] [--scope] [--principles FILE]` | Create a board. Repeating the same content is a no-op. `FILE` is a JSON list of `{key, title, content}`. |
@@ -219,6 +227,7 @@ agilevow/             the package
   manager.py         the read-only audit
   review.py          the post-validation report tool
   mcp.py             the MCP server (stdio)
+  demo.py            the `demo` command: a sample board filled through the API
   web/               the board page: HTML, CSS, JavaScript, translations (i18n.mjs) and the icon set (icons.mjs)
 tests/             unit tests and one browser test (tests/ui.cjs)
 examples/plan.json a three-task plan to try

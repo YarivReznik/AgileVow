@@ -5,6 +5,7 @@ import sys
 from . import __version__
 
 COMMANDS = {
+    "demo": ("agilevow.demo", "open a board with sample work on it: the quickest way to look around"),
     "serve": ("agilevow.server", "run the board and its API on 127.0.0.1"),
     "client": ("agilevow.client", "read and write the board from a shell (claim, evidence, move, ...)"),
     "manager": ("agilevow.manager", "read-only audit: what to work on next, and what is wrong"),

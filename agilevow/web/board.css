@@ -884,8 +884,13 @@ h3 {
   font-size: 12px;
   color: var(--muted);
 }
+#board-filter { --select-width: 124px; }
+#plan-filter { --select-width: 142px; }
+#scope-filter { --select-width: 116px; }
+#status-filter { --select-width: 104px; }
 .filter select {
   height: 40px;
+  width: var(--select-width, auto);   /* fixed widths, as in the design: a native select otherwise grows to its longest option and the toolbar's width then depends on the data */
   min-width: 100px;
   max-width: 200px;      /* a native select grows to its longest option: a 300-character board title must not make the toolbar wrap */
   padding: 0 30px 0 12px;
@@ -922,7 +927,7 @@ h3 {
 .filter-search {
   position: relative;
   display: block;
-  flex: 1 1 200px;
+  flex: 1 1 120px;
   max-width: 332px;
   min-width: 0;
 }
@@ -1856,6 +1861,69 @@ details[open] summary {
   padding: 14px;
   border: 1px solid var(--teal-line);
   border-radius: 12px;
+}
+
+/* Responsive: laptop widths. The overview and the toolbar give up spacing first, then the tagline, then the
+   "acting as" label (it stays for screen readers), so each stays on one row down to the sidebar's breakpoint. */
+@media (max-width: 1500px) {
+  .summary {
+    gap: 28px;
+  }
+  .stats {
+    gap: 14px 26px;
+  }
+  .summary-progress {
+    flex-basis: 170px;
+  }
+  .actor-chip {
+    width: 160px;
+  }
+}
+@media (max-width: 1400px) {
+  .tagline {
+    display: none;
+  }
+  .actor-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 1300px) {
+  #refresh-button > span:not(.icon-slot) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  #refresh-button {
+    padding: 0 13px;
+  }
+}
+@media (max-width: 1240px) {
+  .page-heading {
+    flex-wrap: wrap;           /* the title, then the actions as a row of their own, never one button alone */
+  }
+  .page-heading .actions {
+    margin-top: 0;
+  }
+  .toolbar-filters {
+    flex-basis: 100%;
+  }
+  .summary {
+    flex-wrap: wrap;
+  }
+  .summary-progress {
+    flex: 1 1 100%;
+    margin-inline-start: 0;
+  }
 }
 
 /* Responsive: the sidebar goes first. Everything it offers is also in the toolbar. */

@@ -1,3 +1,6 @@
+# The folder `python -m agilevow demo` creates
+agilevow-demo/
+
 # AgileVow's own data: the database, attachments and lease tokens. Never commit these.
 .agilevow/
 

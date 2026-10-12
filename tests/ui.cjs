@@ -295,6 +295,21 @@ function findLeaks({scope, ignore}) {
   await page.locator('#whoami').click();
   assert.equal(await page.evaluate(()=>document.activeElement.id),'actor');
   passed('The theme toggle switches light and dark and remembers the choice; the profile chip leads to the acting-as field');
+
+  // Laptop widths. 1440 is the most common one and the toolbar and overview broke there without a single failing check:
+  // the title filter dropped under the selects and the stats wrapped. Measure the rows, not the absence of overflow.
+  const rowsAt = async width => { await page.setViewportSize({width,height:900}); await page.waitForTimeout(120);
+    return page.evaluate(()=>{ const rows = els => new Set(els.map(e => Math.round(e.getBoundingClientRect().top / 6))).size;
+      const title = document.querySelector('.summary-title'), range = document.createRange(); range.selectNodeContents(title);
+      return {toolbar: rows([...document.querySelectorAll('.toolbar select, .filter-search, .actor-chip, #refresh-button, #more-button')]),
+              stats: rows([...document.querySelectorAll('.stat')]),
+              heading: rows([...document.querySelectorAll('.page-heading .actions button')]),
+              titleLines: new Set([...range.getClientRects()].map(r => Math.round(r.top))).size,
+              sideways: document.documentElement.scrollWidth > innerWidth + 1}; }); };
+  for (const width of [1668,1440,1366,1280]) assert.deepEqual(await rowsAt(width),{toolbar:1,stats:1,heading:1,titleLines:1,sideways:false},`one tidy row each at ${width}px`);
+  for (const width of [1180,1101]) assert.deepEqual(await rowsAt(width),{toolbar:2,stats:1,heading:1,titleLines:1,sideways:false},`filters, then tools, as two rows at ${width}px`);
+  await page.setViewportSize({width:1440,height:1050});
+  passed('The toolbar, stats, heading and title stay on tidy rows at 1668, 1440, 1366, 1280, 1180 and 1101px');
   // Retain useful evidence of the board and its detailed card at real viewport sizes.
   await page.screenshot({path:path.join(output,'desktop.png'),fullPage:true});
   await page.goto(base+'/?task='+taskId);
