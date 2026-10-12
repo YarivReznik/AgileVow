@@ -19,6 +19,11 @@ It is one Python package with no dependencies, a SQLite file for storage, a JSON
 
 Requires Python 3.9 or newer on macOS or Linux. Clone the repository and stay in its folder; every command below runs from there. (`pip install .` also installs a `agilevow` command that replaces `python3 -m agilevow`.)
 
+```sh
+git clone https://github.com/YarivReznik/ai-kanban.git
+cd ai-kanban
+```
+
 Terminal 1, serve a project folder (it must already exist; a mistyped path is refused, not created):
 
 ```sh
