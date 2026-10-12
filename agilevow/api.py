@@ -192,6 +192,8 @@ def get(handler, url):
         result["tasks"] = [enrich(handler.server, task) for task in result["tasks"]]
     elif url.path == "/api/boards":
         result = {"boards": board.snapshot()["boards"]}
+    elif url.path == "/api/tasks/version":
+        result = {"version": board.change_marker()}
     elif url.path == "/api/tasks/item":
         result = board.get_task(param("id"))
         result["task"] = enrich(handler.server, result["task"])

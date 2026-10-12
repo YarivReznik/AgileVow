@@ -445,6 +445,29 @@ function findLeaks({scope, ignore}) {
   assert.deepEqual(await page.evaluate(()=>[document.documentElement.lang,document.documentElement.dir]),['en','ltr']);
   passed('Hebrew locale mirrors the layout (rtl) and English restores it (ltr)');
 
+  // ---- Live updates. An agent changes the board through the API from another process; the open page shows it within
+  // seconds, in place, without a reload. An open task keeps its draft, and a change to that same task is announced.
+  await page.setViewportSize({width:1440,height:1050});
+  await page.goto(base+'/'); await page.locator('.task-card').first().waitFor();
+  await page.evaluate(()=>{ window.sameDocument = true; });
+  const cardsBefore = await page.locator('.task-card').count();
+  await api('/api/tasks/create',{actor:'another-agent',plan_id:planId,key:'arrives-live',title:'Arrived without a reload',outcome:'It shows up by itself',acceptance:['It appears']});
+  await page.locator('.task-card',{hasText:'Arrived without a reload'}).waitFor({timeout:8000});
+  assert.equal(await page.locator('.task-card').count(),cardsBefore+1);
+  assert.equal(await page.evaluate(()=>window.sameDocument),true,'the page reloaded itself instead of updating in place');
+  await page.goto(base+'/?task='+longKeyTask.id); await page.locator('#task-dialog[open]').waitFor();
+  const draft = page.locator('#task-edit-form [name="next_step"]');
+  await draft.fill('A draft nobody saved');
+  await api('/api/tasks/create',{actor:'another-agent',plan_id:planId,key:'arrives-live-2',title:'A second arrival',outcome:'o',acceptance:['a']});
+  await page.locator('.task-card',{hasText:'A second arrival'}).waitFor({state:'attached',timeout:8000});
+  assert.equal(await draft.inputValue(),'A draft nobody saved','a live update must not touch an open draft');
+  const current = (await api('/api/tasks/item?id='+longKeyTask.id)).task;
+  await api('/api/tasks/comment',{actor:'another-agent',id:longKeyTask.id,revision:current.revision,kind:'note',body:'Changed from somewhere else'});
+  await page.locator('#task-error').filter({hasText:'changed elsewhere'}).waitFor({timeout:8000});
+  assert.equal(await draft.inputValue(),'A draft nobody saved');
+  await page.locator('[data-close="task-dialog"]').click();
+  passed('Live: a change made elsewhere appears within seconds, in place; an open draft is kept and a change to that task is announced');
+
   assert.equal(errors.length,0,errors.join('\n'));
   passed('No page errors');
   const report = {checks,viewports:[[1440,1050],[393,852],[1600,900],[1024,800],[768,1024]],errors,isolated_data:true,at:new Date().toISOString()};

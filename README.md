@@ -203,6 +203,8 @@ Setup for other clients, the fifteen tools and what is deliberately missing: [do
 
 The board is in English. Add `?lang=he` to the address for Hebrew (right-to-left), or use the language picker in the top bar, which remembers the choice in the browser. Without either, the browser's language decides: Hebrew if it starts with `he`, English otherwise.
 
+The board updates itself. When an agent changes something through the command line, MCP or the API, the open page shows it within about two seconds, without a reload; a task you have open keeps your draft and says when it changed elsewhere. Polling pauses while the tab is hidden.
+
 The page follows the system's light or dark setting. The sun/moon button in the top bar switches it and remembers the choice in the browser.
 
 ## Honest limits

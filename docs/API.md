@@ -82,6 +82,7 @@ Guards on a transition:
 | POST | `/api/boards/update` | `actor`, `id`, `revision`; optional `title`, `description`, `scope`, `principles`, `note` | Edit a board. Changing `principles` needs a `note`. |
 | GET | `/api/tasks` | optional query `board`, `plan` (ids) | The snapshot: `{version, link_kinds, boards, plans, tasks}`. |
 | GET | `/api/tasks/item` | query `id` | `{task, events}` for one task. |
+| GET | `/api/tasks/version` | | `{version}`: a number that changes whenever anything is written, and only then (it is the newest event id). The board page polls it every two seconds and reloads only when it changes. |
 | GET | `/api/tasks/export` | | The audit archive. |
 | POST | `/api/plans/create` | `actor`, `board_id`, `source_key`, `title`; optional `description`, `scope`, `kind`, `sources` | Create a plan. |
 | POST | `/api/plans/update` | `actor`, `id`, `revision`; optional `title`, `description`, `scope`, `kind`, `sources`, `note` | Edit a plan. Changing `sources` needs a `note` and reopens its tasks. |

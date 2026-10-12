@@ -19,6 +19,7 @@ const actorKey = 'agilevow.actor';
 const langKey = 'agilevow.lang';
 const themeKey = 'agilevow.theme';
 let leases = {};
+let seenVersion = null;   // the server's change marker when the board was last loaded (see liveTick)
 try { const saved = JSON.parse(sessionStorage.getItem(leaseKey) || '{}'); if (saved && typeof saved === 'object' && !Array.isArray(saved)) leases = saved; } catch { /* Storage can be disabled. */ }
 function rememberLease(id, lease) { if (lease) leases[id] = {token:lease,actor:actor()}; else delete leases[id]; try { sessionStorage.setItem(leaseKey, JSON.stringify(leases)); } catch { /* In-memory claims still work. */ } }
 function actor() { return $('actor').value.trim() || 'local-user'; }
@@ -95,19 +96,27 @@ async function performMutation(work, errorNode, onSuccess) {
     }
   } finally { setBusy(false); }
 }
+// Rebuild a select's options only when they differ: replacing them closes a dropdown the user has open.
+function setOptions(select, options) {
+  const signature = list => JSON.stringify(list.map(o => [o.value, o.text]));
+  if (signature(options) === signature([...select.options])) return;
+  const value = select.value; select.replaceChildren(...options); select.value = value;
+}
 async function refresh() {
+  // The marker is read first: a write that lands between the two reads only causes one extra reload, never a missed one.
+  const marker = await request('/api/tasks/version').catch(() => null);
   const data = await request('/api/tasks'); state.boards = data.boards || []; state.plans = data.plans || []; state.tasks = data.tasks || [];
+  if (marker) seenVersion = marker.version;
   const kinds = Array.isArray(data.link_kinds) ? data.link_kinds.filter(k => typeof k === 'string' && k) : []; state.link_kinds = kinds.length ? kinds : null;
-  const boardValue = $('board-filter').value, scopeValue = $('scope-filter').value;
-  $('board-filter').replaceChildren(new Option(t('filter.allBoards'),''), ...state.boards.map(b => new Option(b.title,b.id))); $('board-filter').value = boardValue;
+  setOptions($('board-filter'), [new Option(t('filter.allBoards'),''), ...state.boards.map(b => new Option(b.title,b.id))]);
   populateProjects();
-  $('scope-filter').replaceChildren(new Option(t('filter.allScopes'),''), ...[...new Set([...state.boards,...state.plans].map(p => p.scope).filter(Boolean))].sort().map(s => new Option(s,s))); $('scope-filter').value = scopeValue;
+  setOptions($('scope-filter'), [new Option(t('filter.allScopes'),''), ...[...new Set([...state.boards,...state.plans].map(p => p.scope).filter(Boolean))].sort().map(s => new Option(s,s))]);
   $('updated-at').textContent = t('board.updatedAt',{time:new Date().toLocaleTimeString(locale, {hour:'2-digit',minute:'2-digit'})});
   renderBoard();
 }
 function populateProjects() {
-  const value = $('plan-filter').value, board = $('board-filter').value;
-  $('plan-filter').replaceChildren(new Option(t('filter.allPlans'),''), ...state.plans.filter(p => !board || p.board_id === board).map(p => new Option(p.title,p.id))); $('plan-filter').value = value;
+  const board = $('board-filter').value;
+  setOptions($('plan-filter'), [new Option(t('filter.allPlans'),''), ...state.plans.filter(p => !board || p.board_id === board).map(p => new Option(p.title,p.id))]);
 }
 function avatar(name) { const node = el('span', 'avatar', initials(name)); node.setAttribute('aria-hidden', 'true'); return node; }
 function emptyAvatar() { const node = el('span', 'avatar av-none'); node.append(icon('user', 14)); node.setAttribute('aria-hidden', 'true'); return node; }
@@ -686,6 +695,28 @@ $('new-plan-button').addEventListener('click',() => openPlanEditor());
 $('edit-plan-button').addEventListener('click',() => openPlanEditor(state.plans.find(p => p.id === $('plan-filter').value)));
 $('new-task-button').addEventListener('click',() => openTaskEditor()); $('import-button').addEventListener('click',openImport); $('export-button').addEventListener('click',exportBoard);
 $('refresh-button').addEventListener('click',async () => { try { await refresh(); notice($('global-notice'),t('board.refreshed'),'success'); } catch (err) { notice($('global-notice'),err.message); } });
+// Live updates. Agents change the board from other processes (the CLI, MCP, the API), so every two seconds the page asks
+// one small question, whether anything has been written since it last loaded, and reloads the board only when the answer
+// changes. It waits while the tab is hidden, while the page's own change is in flight, and while a dropdown has focus.
+// An open task keeps its draft; if that task changed elsewhere, it says so instead of replacing what is being typed.
+const LIVE_MS = 2000;
+let liveBusy = false;
+async function liveTick() {
+  if (liveBusy || document.hidden || state.busy || document.activeElement?.tagName === 'SELECT') return;
+  liveBusy = true;
+  try {
+    const {version} = await request('/api/tasks/version');
+    if (version === seenVersion) return;
+    await refresh();
+    const open = $('task-dialog').open && state.selected, latest = open && state.tasks.find(tk => tk.id === state.selected.id);
+    if (latest && latest.revision !== state.selected.revision && latest.revision !== state.liveNoticed) {
+      state.liveNoticed = latest.revision; notice($('task-error'), t('task.changedElsewhere'), 'warning');
+    }
+  } catch { /* the server is restarting or has stopped; the next tick tries again */ }
+  finally { liveBusy = false; }
+}
+setInterval(liveTick, LIVE_MS);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) liveTick(); });
 await refresh().catch(err => { $('board-count').textContent = t('board.loadFailed'); $('summary-description').textContent = t('board.loadHint'); notice($('global-notice'),err.message); });
 const params = new URLSearchParams(location.search);
 if (state.boards.some(b => b.id === params.get('board'))) { $('board-filter').value = params.get('board'); populateProjects(); }

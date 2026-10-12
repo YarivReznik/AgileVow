@@ -313,6 +313,7 @@ const en = {
   'task.correctionFirst': 'Save the changed outcome, criteria, dependencies or documents first, then enter new evidence. Your draft has been kept.',
   'task.correctionSaved': 'Correction saved. Previous evidence was cleared; active or completed work returns to Backlog.',
   'task.saved': 'Task details saved.',
+  'task.changedElsewhere': 'This task changed elsewhere since you opened it. Your draft is kept; close and reopen the task to see the latest.',
   'task.actorChanged': 'Actor changed. Reload the saved task to refresh ownership actions; any current draft is still here.',
 
   // Result links
@@ -695,6 +696,7 @@ const he = {
   'task.correctionFirst': 'יש לשמור קודם את התוצאה, הקריטריונים, התלויות או המסמכים ששונו, ורק אחר כך להזין ראיות חדשות. הטיוטה נשמרה.',
   'task.correctionSaved': 'התיקון נשמר. הראיות הקודמות נמחקו; עבודה פעילה או גמורה חוזרת לבקלוג.',
   'task.saved': 'פרטי המשימה נשמרו.',
+  'task.changedElsewhere': 'המשימה השתנתה במקום אחר מאז שנפתחה. הטיוטה שלך נשמרת; כדי לראות את הגרסה האחרונה יש לסגור ולפתוח אותה מחדש.',
   'task.actorChanged': 'הפועל השתנה. יש לטעון מחדש את המשימה השמורה כדי לרענן את פעולות הבעלות; הטיוטה הנוכחית עדיין כאן.',
 
   // Result links

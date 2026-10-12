@@ -432,6 +432,13 @@ class TaskBoard:
             events = db.execute("SELECT id,body FROM task_events WHERE task_id=? ORDER BY id", (task_id,)).fetchall()
             return {"task": self._public(db, task), "events": self._events(events)}
 
+    def change_marker(self):
+        """A number that changes whenever anything is written, and only then. Every write records an event
+        (task writes all go through _save_task), event ids come from AUTOINCREMENT so they are never reused, and
+        pruning removes only the oldest events, so the newest id only grows. The board page polls this to stay live."""
+        with self._transaction() as db:
+            return db.execute("SELECT COALESCE(MAX(id), 0) FROM task_events").fetchone()[0]
+
     def export(self):
         with self._transaction() as db:
             return {"version": 1, "archival": True, "history_limit": HISTORY_LIMIT,
