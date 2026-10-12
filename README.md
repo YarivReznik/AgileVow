@@ -20,8 +20,8 @@ It is one Python package with no dependencies, a SQLite file for storage, a JSON
 Python 3.9 or newer on macOS or Linux. Nothing to install, and no database to set up: it is a SQLite file the server creates on first run.
 
 ```sh
-git clone https://github.com/YarivReznik/ai-kanban.git
-cd ai-kanban
+git clone https://github.com/YarivReznik/AgileVow.git
+cd AgileVow
 python3 -m agilevow demo
 ```
 
