@@ -84,7 +84,12 @@ function findLeaks({scope, ignore}) {
   const fill = async (name,value) => edit.locator(`[name="${name}"]`).fill(value);
   const submitEditor = async () => {await page.locator('#editor-save').click(); await edit.waitFor({state:'hidden'});};
   await page.locator('#new-board-button').click();
+  // A new board offers one principle, ticked: "Report as you work". This board is about a principle the user writes, so it is unticked here.
+  const offer = edit.locator('[name="default_principle"]');
+  assert.equal(await offer.isChecked(), true, 'the default principle is offered, ticked');
+  await offer.uncheck();
   await fill('title','Shared tools'); await fill('source_key','tools'); await fill('scope','shared'); await fill('description','Tools for every project'); await submitEditor();
+  assert.deepEqual((await api('/api/boards')).boards.find(b => b.source_key === 'tools').principles || [], [], 'unticked means no default principle');
   const boardId = await page.locator('#board-filter').inputValue(); assert.match(boardId,/^board-/);
   await page.getByRole('button',{name:'Edit principles',exact:true}).click();
   await page.getByRole('button',{name:'＋ Add principle',exact:true}).click();
@@ -452,6 +457,12 @@ function findLeaks({scope, ignore}) {
   // ---- The Hebrew locale: the strings come from i18n.mjs, which is the only file allowed to hold them.
   const {LOCALES} = await import(pathToFileURL(path.join(repo,'agilevow/web/i18n.mjs')).href);
   await page.setViewportSize({width:1440,height:1050});
+  // A browser set to Hebrew still gets English: the page never picks a language from the browser, only from the picker.
+  const hebrewBrowser = await browser.newContext({viewport:{width:1440,height:1050},locale:'he-IL'});
+  const asHebrew = await hebrewBrowser.newPage(); await asHebrew.goto(base+'/'); await asHebrew.locator('.task-card').first().waitFor();
+  assert.equal(await asHebrew.evaluate(()=>navigator.language),'he-IL');
+  assert.deepEqual(await asHebrew.evaluate(()=>[document.documentElement.lang,document.documentElement.dir]),['en','ltr'],'a Hebrew browser must still open in English');
+  await hebrewBrowser.close();
   await page.goto(base+'/?lang=he');
   await page.locator('.task-card').first().waitFor();
   assert.deepEqual(await page.evaluate(()=>[document.documentElement.lang,document.documentElement.dir]),['he','rtl']);
@@ -467,6 +478,15 @@ function findLeaks({scope, ignore}) {
   await page.goto(base+'/?lang=en');
   assert.deepEqual(await page.evaluate(()=>[document.documentElement.lang,document.documentElement.dir]),['en','ltr']);
   passed('Hebrew locale mirrors the layout (rtl) and English restores it (ltr)');
+
+  // ---- The default principle, left ticked: the new board starts with it, in the page's language.
+  await page.goto(base+'/'); await page.locator('.task-card').first().waitFor();
+  await page.locator('#new-board-button').click();
+  await fill('title','Reported work'); await fill('source_key','reported'); await submitEditor();
+  const reported = (await api('/api/boards')).boards.find(b => b.source_key === 'reported');
+  assert.deepEqual(reported.principles.map(p => [p.key,p.title]),[['report-as-you-work','Report as you work']]);
+  assert.match(reported.principles[0].content,/comment what you are about to do/);
+  passed('A new board starts with the principle "Report as you work" unless it is unticked');
 
   // ---- Live updates. An agent changes the board through the API from another process; the open page shows it within
   // seconds, in place, without a reload. An open task keeps its draft, and a change to that same task is announced.

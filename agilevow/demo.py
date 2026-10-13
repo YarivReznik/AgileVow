@@ -20,6 +20,7 @@ from pathlib import Path
 
 from . import board as task_board
 from .client import Board, BoardError
+from .principles import REPORT_AS_YOU_WORK
 from .server import DEFAULT_PORT, make_server
 
 DEFAULT_DIR = "agilevow-demo"
@@ -30,6 +31,7 @@ PRINCIPLES = [
                 "A statement that it works is not evidence."},
     {"key": "small-changes", "title": "Keep changes small",
      "content": "One task, one reviewable change. If it needs a second concern, make a second task."},
+    REPORT_AS_YOU_WORK,
 ]
 
 # A plan is the shape examples/plan.json has. `status` is where the task starts; _story() then moves some of them.
@@ -131,9 +133,30 @@ EVIDENCE = {
 }
 
 
+# What the agent said on each card as it worked, as the third principle asks: the plan when it claimed it, then each step.
+REPORTS = {
+    "audit-endpoints": ["Starting: list every route from the router and mark which ones need an API key.",
+                        "Found 7 routes. Health, status and the Stripe webhook take no key; the webhook checks a signature instead."],
+    "retry-policy": ["Starting: write the retry policy, then cover it with SDK tests.",
+                     "Changed the plan: POST is retried only with an Idempotency-Key, after the review of the payments flow."],
+    "fix-flaky-test": ["Starting: the login test fails about one run in twelve. Looking for shared state between tests.",
+                       "Cause: the session cookie leaked between tests. Isolated it; 50 runs in a row now pass."],
+    "rate-limit": ["Starting: limit each key to 100 requests a minute, in the gateway.",
+                   "The 429 works. Still missing: the Retry-After header. Next step updated."],
+    "migrate-keys": ["Starting: list the legacy keys and who owns them.",
+                     "Blocked: support has the customer list and has not sent it yet."],
+}
+
+
 def _claim(worker, key, plan):
     task = worker.task(key, plan)
-    return worker.claim(task, worker.context(task)["principles_sha256"])
+    task = worker.claim(task, worker.context(task)["principles_sha256"])
+    worker.comment(task, "note", REPORTS[key][0])
+    return task
+
+
+def _report(worker, task):
+    return worker.comment(task, "note", REPORTS[task["key"]][1])
 
 
 def _evidence(worker, task):
@@ -141,8 +164,8 @@ def _evidence(worker, task):
 
 
 def _finish_work(worker, task):
-    """Tick every criterion (each has evidence) and hand the card over for review."""
-    return worker.action(worker.check(task), "transition", status="review")
+    """Report, tick every criterion (each has evidence) and hand the card over for review."""
+    return worker.action(worker.check(_report(worker, task)), "transition", status="review")
 
 
 def _story(worker, reviewer):
@@ -158,7 +181,8 @@ def _story(worker, reviewer):
         "checks": [{"criterion": 0, "passed": True, "observed": "Counted 7 routes in routes.txt and matched them against the router file.", "ref": "evidence/routes.txt"},
                    {"criterion": 1, "passed": True, "observed": "health, status and the Stripe webhook are the only routes without an API key, and each is marked.", "ref": "evidence/routes.txt"}],
         "principles": [{"key": "evidence-first", "passed": True, "observed": "Both criteria point at the captured route table, not at a statement.", "ref": "evidence/routes.txt"},
-                       {"key": "small-changes", "passed": True, "observed": "One audit, one file; no unrelated change rode along.", "ref": "evidence/routes.txt"}]})
+                       {"key": "small-changes", "passed": True, "observed": "One audit, one file; no unrelated change rode along.", "ref": "evidence/routes.txt"},
+                       {"key": "report-as-you-work", "passed": True, "observed": "The card's comments say what was planned when it was claimed and what was found; nothing happened off the record.", "ref": "evidence/routes.txt"}]})
     # Post validation: finished, waiting for a reviewer.
     task = _claim(worker, "retry-policy", "hardening-sprint")
     task = _finish_work(worker, _evidence(worker, task))
@@ -167,9 +191,9 @@ def _story(worker, reviewer):
     _finish_work(worker, _evidence(worker, _claim(worker, "fix-flaky-test", "hardening-sprint")))
     # Doing: one criterion has evidence, the other does not yet.
     task = _evidence(worker, _claim(worker, "rate-limit", "hardening-sprint"))
-    worker.update(task, next_step="Add the Retry-After header, then record evidence for criterion 1.")
+    worker.update(_report(worker, task), next_step="Add the Retry-After header, then record evidence for criterion 1.")
     # Blocked: hidden from the board until "show blocked" is switched on, counted in the overview.
-    task = _claim(worker, "migrate-keys", "hardening-sprint")
+    task = _report(worker, _claim(worker, "migrate-keys", "hardening-sprint"))
     worker.action(task, "transition", status="blocked", note="Waiting on the customer list from support.")
 
 

@@ -1851,6 +1851,27 @@ details[open] summary {
   padding: 14px;
   border-radius: 12px;
 }
+.field.field-check {
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--principles-line);
+  border-radius: 12px;
+  background: var(--principles);
+}
+.field-check > span:first-child {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+.field-check > input {
+  grid-column: 1;
+  grid-row: 1;
+}
+.field-check > .help {
+  grid-column: 2;
+}
 .field input[type=checkbox] {
   width: 20px;
   height: 20px;

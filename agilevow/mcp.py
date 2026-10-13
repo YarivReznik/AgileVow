@@ -21,15 +21,17 @@ from pathlib import Path
 
 from . import __version__, manager, review
 from .client import DEFAULT_URL, Board, BoardError
+from .principles import REPORT_AS_YOU_WORK
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")  # newest first
 MAX_TEXT = 100_000
 MOVES = ("backlog", "ready", "review", "post_validation", "blocked", "cancelled")
 
 INSTRUCTIONS = """AgileVow is a task board with a strict workflow. Follow it exactly.
+0. Create a board (create_board) only when the user asks for one, with the principles the user stated. Never invent or soften a principle: they are the user's requirements and every card is checked against them.
 1. Resume first: list_tasks (and audit_board). Continue a card you already hold before starting another.
 2. get_context before claiming: it holds the board's binding principles and their hash. Read them, then claim_task with that principles_sha256.
-3. Work, then record_evidence for every acceptance criterion (numbered from 0) using real results only, then check_criteria.
+3. Work, then record_evidence for every acceptance criterion (numbered from 0) using real results only, then check_criteria. Report as you go with add_comment: what you are about to do when you claim, each step or decision as it happens, and what changed and why whenever the plan does.
 4. move_task to review or post_validation. There is no move to done and no workaround.
 5. A card is Done only through prepare_review, then inspecting the work and filling every row honestly, then submit_review. A failure returns the card to review with a repair list. A passing review must come from someone who did not work on the card: you may fail your own work, but to pass it ask the user, or a second agent with its own actor, to review it.
 6. release_task with a note before you switch to other work. Never invent or reconstruct evidence."""
@@ -66,6 +68,9 @@ def _check(value, schema, where="arguments"):
             raise ToolInputError(f"{where} must be a string")
         if "enum" in schema and value not in schema["enum"]:
             raise ToolInputError(f"{where} must be one of: {', '.join(schema['enum'])}")
+    elif kind == "boolean":
+        if type(value) is not bool:
+            raise ToolInputError(f"{where} must be true or false")
     elif kind == "integer":
         if type(value) is not int:
             raise ToolInputError(f"{where} must be an integer")
@@ -204,6 +209,29 @@ def t_submit_review(board, args):
             "next": "Done." if done["status"] == "done" else "A check failed: the card is back in review with a repair list. Claim it, fix it, and validate again."}
 
 
+def _principle_key(title, taken):
+    base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60] or "principle"
+    key, n = base, 2
+    while key in taken:
+        key, n = f"{base}-{n}", n + 1
+    return key
+
+
+def t_create_board(board, args):
+    stated = [dict(p) for p in args.get("principles", [])]
+    principles = ([dict(REPORT_AS_YOU_WORK)] if args.get("report_as_you_work", True)
+                  and REPORT_AS_YOU_WORK["key"] not in {p.get("key") for p in stated} else []) + stated
+    taken = {p["key"] for p in principles if p.get("key")}
+    for p in principles:
+        if not p.get("key"):
+            p["key"] = _principle_key(p["title"], taken)
+            taken.add(p["key"])
+    created = board.create_board(args["key"], args["title"], args.get("description", ""), args.get("scope", ""), principles)
+    return {"key": created["source_key"], "id": created["id"], "title": created["title"],
+            "principles": [p["title"] for p in created.get("principles", [])],
+            "next": "Plan the work on it with import_plan."}
+
+
 def t_import_plan(board, args):
     result = board.import_plan(_board_by_ref(board, args["board"]), args["plan"])
     plans = {result["plan"]["id"]: result["plan"]["source_key"]}
@@ -221,6 +249,23 @@ def build_tools():
     return [
         _tool("list_boards", "List boards", "List the boards on the server: key, id, title and how many binding principles each has.",
               _obj({}), t_list_boards, read_only=True),
+        _tool("create_board", "Create a board",
+              "Create a board for a project, team or area of work, when the user asks for one. Its principles are the user's requirements: "
+              "put in exactly the ones the user stated in this conversation, in their words; never invent, add or soften one. Every card on the "
+              "board is checked against them before it can be Done. A new board also starts with the principle 'Report as you work' "
+              "(say what you are doing as you do it) unless the user asks you to leave it out. Repeating the same board changes nothing; "
+              "a different board under an existing key is refused, and there is no tool to change a board's principles later. Then plan the work with import_plan.",
+              _obj({"key": _str("Stable board key: letters, numbers and dashes, for example web-app."),
+                    "title": _str("Board title."),
+                    "description": _str("What belongs on this board."),
+                    "scope": _str("The project, team or area it covers."),
+                    "principles": {"type": "array", "description": "The principles the user stated, in their words.",
+                                   "items": _obj({"title": _str("Short name of the principle."),
+                                                  "content": _str("The full requirement, as the user stated it."),
+                                                  "key": _str("Optional stable key; made from the title when left out.")}, ["title", "content"])},
+                    "report_as_you_work": {"type": "boolean", "description": "Start the board with the principle 'Report as you work'. Default true; false only when the user asks."}},
+                   ["key", "title"]),
+              t_create_board, idempotent=True),
         _tool("list_tasks", "List tasks", "List tasks, optionally for one board and/or one status. Use this first to resume work.",
               _obj({"board": BOARD, "status": _str("Only tasks in this status.", enum=["backlog", "ready", "doing", "review", "post_validation", "done", "blocked", "cancelled"])}),
               t_list_tasks, read_only=True),

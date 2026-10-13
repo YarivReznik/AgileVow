@@ -39,7 +39,12 @@ class SeedTests(unittest.TestCase):
         self.assertEqual(demo.seed(self.url, self.root), 11)
         snap = get(self.url + "/api/tasks")
         self.assertEqual(len(snap["boards"]), 1)
-        self.assertEqual([p["title"] for p in snap["boards"][0]["principles"]], ["Evidence before claims", "Keep changes small"])
+        self.assertEqual([p["title"] for p in snap["boards"][0]["principles"]], ["Evidence before claims", "Keep changes small", "Report as you work"])
+        # the agents do what the third principle asks: every card they claimed says what they set out to do, in a comment
+        for task in snap["tasks"]:
+            if task["owner"]:
+                said = [c for c in task.get("comments", []) if c.get("author") == "agent-1"]
+                self.assertTrue(said and said[0]["body"].startswith("Starting:"), task["key"])
         self.assertEqual(len(snap["plans"]), 2)
         self.assertEqual(Counter(t["status"] for t in snap["tasks"]),
                          {"done": 1, "post_validation": 1, "review": 1, "doing": 1, "blocked": 1, "ready": 3, "backlog": 3})
@@ -56,6 +61,9 @@ class SeedTests(unittest.TestCase):
         done = next(t for t in snap["tasks"] if t["status"] == "done")
         events = get(self.url + "/api/tasks/item?" + urllib.parse.urlencode({"id": done["id"]}))["events"]
         self.assertIn("reviewer", {e.get("actor") for e in events})
+        verdict = done["validations"][-1]
+        self.assertEqual({p["principle_key"]: p["passed"] for p in verdict["principles"]},
+                         {"evidence-first": True, "small-changes": True, "report-as-you-work": True})
         # every piece of evidence is a file a reviewer can open (so the board links it), marked as sample data
         refs = {e["ref"] for t in snap["tasks"] for e in t["evidence"]}
         self.assertEqual(refs, set(demo.FILES))

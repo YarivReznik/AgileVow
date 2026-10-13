@@ -18,6 +18,10 @@ const leaseKey = 'agilevow.leases.v1';
 const actorKey = 'agilevow.actor';
 const langKey = 'agilevow.lang';
 const themeKey = 'agilevow.theme';
+// The principle a new board can start with. Principles are what agents read and are checked against, so it is stored in
+// English whatever language the page is shown in. agilevow/principles.py holds the same text; tests/test_principles.py
+// keeps the two identical.
+const REPORT_AS_YOU_WORK = {key:'report-as-you-work',title:'Report as you work',content:'Keep the card telling the story. When you claim it, comment what you are about to do. Comment each meaningful step, finding or decision as it happens, not at the end. When anything changes (the plan, the scope, a blocker, a dependency), comment what changed and why before you go on. Keep the next step current, and before you stop or hand over, leave it so that someone else could pick the card up.'};
 let leases = {};
 let seenVersion = null;   // the server's change marker when the board was last loaded (see liveTick)
 try { const saved = JSON.parse(sessionStorage.getItem(leaseKey) || '{}'); if (saved && typeof saved === 'object' && !Array.isArray(saved)) leases = saved; } catch { /* Storage can be disabled. */ }
@@ -334,10 +338,17 @@ function openBoardEditor(board = null) {
       ['scope',t('common.scope'),board?.scope,{placeholder:t('boardEditor.scopePlaceholder')}],
       ['description',t('common.purpose'),board?.description,{type:'textarea',placeholder:t('boardEditor.descriptionPlaceholder')}]
     ]) { const f = field(key,label,value,options); fields[key] = f.input; container.append(f.wrap); }
-    if (board) fields.source_key.readOnly = true; return fields;
+    if (board) { fields.source_key.readOnly = true; return fields; }
+    // A new board starts with one principle, ticked by default: whoever works on a card says what they are doing as they go.
+    const offer = field('default_principle',t('principles.defaultOffer'),'',{type:'checkbox',help:REPORT_AS_YOU_WORK.content});
+    offer.wrap.querySelector('.help').dir = 'ltr';
+    offer.input.checked = true; offer.wrap.classList.add('field-check'); container.append(offer.wrap);
+    return {...fields, defaultPrinciple: offer.input};
   },(fields,error) => {
-    const saved = state.editor.board; const payload = Object.fromEntries(Object.entries(fields).map(([key,input]) => [key,input.value.trim()]));
+    const saved = state.editor.board, {defaultPrinciple, ...inputs} = fields;
+    const payload = Object.fromEntries(Object.entries(inputs).map(([key,input]) => [key,input.value.trim()]));
     if (saved) { payload.id = saved.id; payload.revision = saved.revision; delete payload.source_key; }
+    else if (defaultPrinciple?.checked) payload.principles = [{...REPORT_AS_YOU_WORK}];
     mutate(`/api/boards/${saved ? 'update' : 'create'}`,payload,error,async result => { await refresh(); $('board-filter').value = result.board.id; $('plan-filter').value = ''; populateProjects(); renderBoard(); $('editor-dialog').close(); notice($('global-notice'),saved ? t('boardEditor.updatedNotice') : t('boardEditor.createdNotice'),'success'); });
   },{board});
 }

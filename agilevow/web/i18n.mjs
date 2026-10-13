@@ -150,6 +150,7 @@ const en = {
 
   // Binding principles
   'principles.title': 'Binding principles',
+  'principles.defaultOffer': 'Start with the principle “Report as you work”',
   'principles.help': 'The first context for every task on the board. Changes also apply to existing tasks.',
   'principles.edit': 'Edit principles',
   'principles.none': 'No principles have been defined for this board yet.',
@@ -534,6 +535,7 @@ const he = {
 
   // Binding principles
   'principles.title': 'עקרונות מחייבים',
+  'principles.defaultOffer': 'להתחיל עם העיקרון “Report as you work”',
   'principles.help': 'ההקשר הראשון לכל משימה בלוח. שינויים חלים גם על משימות קיימות.',
   'principles.edit': 'עריכת עקרונות',
   'principles.none': 'טרם הוגדרו עקרונות ללוח הזה.',
@@ -778,7 +780,8 @@ export const LOCALES = { en, he };
 const STORAGE_KEY = 'agilevow.lang';
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 
-// Order of precedence: ?lang= in the URL, the remembered choice, the browser's language, English.
+// English unless Hebrew was chosen: ?lang= in the URL, or the choice the language picker remembered. The browser's own
+// language is deliberately not consulted, so nobody gets a language they did not pick.
 function resolveLocale() {
   try {
     const asked = new URLSearchParams(globalThis.location.search).get('lang');
@@ -788,9 +791,6 @@ function resolveLocale() {
     const saved = globalThis.localStorage.getItem(STORAGE_KEY);
     if (saved && has(LOCALES, saved)) return saved;
   } catch { /* Storage can be disabled or throw. */ }
-  try {
-    if (String(globalThis.navigator.language || '').toLowerCase().startsWith('he')) return 'he';
-  } catch { /* No navigator. */ }
   return 'en';
 }
 

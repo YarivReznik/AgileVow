@@ -180,15 +180,49 @@ Environment for `client`, `manager` and `review`:
 | `AGILEVOW_ACTOR` | `agent` | Who is acting. Free text, not authenticated. |
 | `AGILEVOW_LEASES` | `./.agilevow/leases.json` | Where `client` keeps lease tokens (owner-only file, relative to the current folder). The server shows a token once, at claim. |
 
-## Use it from an agent (MCP)
+## Run it from a chat (Claude Code and other MCP clients)
 
-`agilevow mcp` serves the same worker loop as [Model Context Protocol](https://modelcontextprotocol.io) tools over stdio, so an agent can resume work, read the principles, claim, record evidence and validate without a shell. It talks to the running server, so every rule above still applies, and it offers no way to create a board or to reach Done except `submit_review`.
+Everything above can also be done by talking to your coding agent. `agilevow mcp` serves the board as [Model Context Protocol](https://modelcontextprotocol.io) tools, so in Claude Code (or Claude Desktop, Cursor, any MCP client) you ask in plain words and the agent creates the board, plans the work, claims cards, records evidence and reports back. It goes through the running server, so every rule above still applies, and the board page shows each change within a couple of seconds.
+
+Set it up once per project: start the board, then register two agents, one that works and one that reviews (a card can only be passed by someone who did not work on it).
 
 ```sh
+python3 -m agilevow serve --root /path/to/project
 claude mcp add agilevow -e AGILEVOW_ACTOR=claude -- agilevow mcp
+claude mcp add agilevow-review -e AGILEVOW_ACTOR=reviewer -- agilevow mcp
 ```
 
-Setup for other clients, the fifteen tools and what is deliberately missing: [docs/MCP.md](docs/MCP.md).
+`agilevow` is the command `pip install .` puts on your path. Without installing, use `-e PYTHONPATH=/path/to/clone -- python3 -m agilevow mcp`, and add `-e AGILEVOW_URL=http://127.0.0.1:PORT` if the board runs on another port.
+
+### A simple request
+
+> **You:** What's on the board, and what needs me?
+
+The agent reads the board (`list_tasks`, `audit_board`) and answers in a few lines: which cards are waiting for a review, which are blocked and why, and which ready card it would take next.
+
+> **You:** Take the next ready card.
+
+It reads the board's principles, claims the card with their hash, comments what it is about to do, does the work, records evidence for each criterion, ticks them, comments what it found, and moves the card to Post validation. You can watch every step on the page.
+
+### A complete board, set up in one message
+
+> **You:** Set up a board for our mobile app launch. Principles: every change ships behind a feature flag; nothing is released while the beta crash-free rate is under 99.5%; every UI change comes with before and after screenshots. Two mini projects. "Beta": a TestFlight build, crash reporting, invite 50 testers, collect their feedback. "Store launch": the store listing, the privacy labels, the release (after the listing and the labels), then the announcement (after the release). Give every task an outcome and acceptance criteria I can check, and make crash reporting a P0.
+
+The agent turns that into:
+
+1. **The board** (`create_board`): your three principles in your words, plus "Report as you work", which every new board starts with unless you ask to leave it out.
+2. **Two mini projects** (`import_plan`, once each): every task with an outcome, acceptance criteria, a priority and its dependencies, so the release card cannot become Ready before the listing and the labels are Done.
+3. **A summary back to you**: the cards, their order and anything it had to assume.
+
+Then the rest of the work happens in the same chat:
+
+> **You:** Start on crash reporting.
+
+> **You:** Review the TestFlight card as the reviewer.
+
+The second request goes through `agilevow-review`. It inspects the evidence and passes or fails every criterion and every principle; a pass from the agent that did the work is refused. For a review that does not share the worker's blind spots, run it in a separate session, have another person do it, or do it yourself on the page.
+
+What an agent cannot do from a chat, on purpose: change a board's principles once it exists, move a card straight to Done, or see a lease token. Changing principles or a card's scope is done on the page, by you. The tools, their arguments and the setup for other clients: [docs/MCP.md](docs/MCP.md).
 
 ## `serve` options
 
@@ -202,7 +236,7 @@ Setup for other clients, the fifteen tools and what is deliberately missing: [do
 
 ## Language and theme
 
-The board is in English. Add `?lang=he` to the address for Hebrew (right-to-left), or use the language picker in the top bar, which remembers the choice in the browser. Without either, the browser's language decides: Hebrew if it starts with `he`, English otherwise.
+The board is in English. Add `?lang=he` to the address for Hebrew (right-to-left), or use the language picker in the top bar, which remembers the choice in the browser. Without either, it is in English: the browser's own language is not used to pick one.
 
 The board updates itself. When an agent changes something through the command line, MCP or the API, the open page shows it within about two seconds, without a reload; a task you have open keeps your draft and says when it changed elsewhere. Polling pauses while the tab is hidden.
 

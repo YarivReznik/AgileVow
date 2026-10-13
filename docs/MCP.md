@@ -57,6 +57,7 @@ Read-only tools are marked. None deletes anything: a card can be cancelled or re
 | Tool | Read-only | What it does |
 | --- | --- | --- |
 | `list_boards` | yes | Boards on the server: key, id, title, and how many binding principles each has. |
+| `create_board` | | Create a board when the user asks for one, with the principles the user stated (keys are made from titles when left out). It starts with "Report as you work" unless `report_as_you_work` is `false`. The same board again changes nothing; a different one under an existing key is refused. |
 | `list_tasks` | yes | Tasks, optionally for one board and one status. Start here to resume work. |
 | `get_task` | yes | One task in full: outcome, criteria, evidence, checklist, corrections, links, owner, status, recent comments and events. |
 | `get_context` | yes | The board's binding principles and the task context, with `principles_sha256`. Read it before claiming. |
@@ -87,7 +88,7 @@ The server sends these rules to the client when the session opens, in its `instr
 
 ## What is deliberately missing
 
-- **No tool creates a board.** A board's binding principles are the user's requirements. An agent can read them and plan inside the board (`import_plan`) but does not get to invent them. Create the board yourself (`agilevow client create-board`, or the web page).
+- **No tool changes a board's principles.** `create_board` takes the principles the user states in the conversation, and its description tells the agent to copy them and never invent or soften one. Once the board exists, nothing over MCP can change them: creating it again with different principles is refused, and there is no update tool. Edit principles on the page or with the API. An agent that wants different rules has to ask you.
 - **No way to Done except `submit_review`.** `move_task` does not accept `done` or `doing`; its schema rejects them before anything reaches the server, and the server would refuse them anyway.
 - **No lease token is ever returned.** The model sees that it holds a card, not the secret that proves it. The token stays in the owner-only lease file.
 - **Bad arguments are answered, not raised.** A missing field or a wrong type comes back as a tool result with `isError: true` and a sentence saying what is wrong, so the model can correct itself. Only an unknown tool name or a malformed message is a protocol error.

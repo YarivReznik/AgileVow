@@ -86,7 +86,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_what_the_server_deliberately_does_not_offer(self):
         names = {t["name"] for t in self.server.handle(rpc("tools/list"))["result"]["tools"]}
-        self.assertNotIn("create_board", names)  # a board's principles are the user's requirements, not the agent's to invent
+        self.assertNotIn("update_board", names)  # no tool changes a board's principles: an agent cannot rewrite the rules it is judged against
         for tool in self.server.tools.values():
             self.assertFalse({"lease", "token", "lease_token"} & set(tool["inputSchema"]["properties"]), tool["name"])
         move = self.server.tools["move_task"]["inputSchema"]["properties"]["status"]["enum"]
@@ -224,6 +224,46 @@ class LiveTools(unittest.TestCase):
         self.assertEqual(json.loads(self.leases.read_text()), {}, "the lease is dropped once the card leaves doing")
         self.assertNotIn(token, "\n".join(self.seen), "the lease token reached the model")
 
+    def test_a_board_is_created_from_what_the_user_stated(self):
+        stated = [{"title": "No dead links", "content": "Every link on the site resolves."}]
+        made = self.ok("create_board", key="web-app", title="Web app", principles=stated)
+        self.assertEqual(made["principles"], ["Report as you work", "No dead links"])  # the default first, then the user's
+        self.assertEqual(self.ok("create_board", key="web-app", title="Web app", principles=stated)["id"], made["id"])  # again: no change
+        softer = [{"title": "No dead links", "content": "Links should mostly work."}]
+        is_error, _ = self.call("create_board", key="web-app", title="Web app", principles=softer)
+        self.assertTrue(is_error)  # an agent cannot swap a board's principles by creating it again
+        self.assertEqual(self.ok("create_board", key="bare", title="Bare", report_as_you_work=False)["principles"], [])
+        is_error, message = self.call("create_board", key="x", title="X", report_as_you_work="yes")
+        self.assertEqual((is_error, "true or false" in message), (True, True))
+        self.ok("create_board", key="two", title="Two", report_as_you_work=False,
+                principles=[{"title": "Be kind", "content": "One."}, {"title": "Be kind", "content": "Two."}])
+        stored = next(b for b in Board(actor="lead", url=self.url, leases=self.root / "lead.json").boards() if b["source_key"] == "two")
+        self.assertEqual([p["key"] for p in stored["principles"]], ["be-kind", "be-kind-2"])
+
+    def test_the_readme_board_set_up_from_one_message(self):
+        """The calls an agent makes for the README's "complete board" example, and what they must produce."""
+        task = lambda key, title, priority=2, deps=(): {"key": key, "title": title, "outcome": f"{title} is done and checkable.",
+                                                         "acceptance": [f"{title}: observed working"], "priority": priority,
+                                                         "status": "backlog" if deps else "ready", **({"depends_on": list(deps)} if deps else {})}
+        board = self.ok("create_board", key="mobile-launch", title="Mobile app launch", principles=[
+            {"title": "Feature flags", "content": "Every change ships behind a feature flag."},
+            {"title": "Crash-free beta", "content": "Nothing is released while the beta crash-free rate is under 99.5%."},
+            {"title": "Screenshots", "content": "Every UI change comes with before and after screenshots."}])
+        self.assertEqual(board["principles"], ["Report as you work", "Feature flags", "Crash-free beta", "Screenshots"])
+        beta = {"source_key": "beta", "title": "Beta", "sources": [], "tasks": [
+            task("testflight", "TestFlight build"), task("crash-reporting", "Crash reporting", priority=0),
+            task("invite", "Invite 50 testers", deps=["testflight"]), task("feedback", "Collect feedback", deps=["invite"])]}
+        store = {"source_key": "store-launch", "title": "Store launch", "sources": [], "tasks": [
+            task("listing", "Store listing"), task("privacy", "Privacy labels"),
+            task("release", "Release", deps=["listing", "privacy"]), task("announce", "Announce", deps=["release"])]}
+        self.ok("import_plan", board="mobile-launch", plan=beta)
+        self.ok("import_plan", board="mobile-launch", plan=store)
+        cards = {t["key"]: t for t in self.ok("list_tasks", board="mobile-launch")["tasks"]}
+        self.assertEqual(len(cards), 8)
+        self.assertEqual(cards["crash-reporting"]["priority"], 0)
+        is_error, _ = self.call("move_task", task="release", status="ready")
+        self.assertTrue(is_error)  # the release waits for the listing and the privacy labels
+
     def test_a_lease_token_is_stored_for_the_agent_and_never_shown_to_the_model(self):
         self.plan_a_board()
         self.ok("claim_task", task="write-readme")
@@ -298,6 +338,10 @@ class StdioTests(unittest.TestCase):
                      rpc("tools/list", mid=2),
                      rpc("tools/call", {"name": "claim_task", "arguments": {"task": "write-readme"}}, 3),
                      rpc("tools/call", {"name": "list_boards", "arguments": {}}, 4)]
+            # The repo may hold its own board's data folder (a developer can run AgileVow on this repo); the session must
+            # not add anything to it, whatever was there before.
+            files_in_repo_data = lambda: sorted(str(p) for p in REPO.glob(".agilevow/**/*"))
+            before = files_in_repo_data()
             env = dict(os.environ, HOME=str(home), AGILEVOW_URL=url, AGILEVOW_ACTOR="agent x/1")
             env.pop("AGILEVOW_LEASES", None)
             done = subprocess.run([sys.executable, "-m", "agilevow", "mcp"], input="\n".join(json.dumps(m) for m in lines) + "\n",
@@ -305,7 +349,7 @@ class StdioTests(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stderr)
             replies = [json.loads(line) for line in done.stdout.splitlines()]  # every stdout line is JSON, or this raises
             self.assertEqual([r["id"] for r in replies], [1, 2, 3, 4])
-            self.assertEqual(len(replies[1]["result"]["tools"]), 15)
+            self.assertEqual(len(replies[1]["result"]["tools"]), 16)
             self.assertFalse(replies[2]["result"]["isError"], replies[2])
             self.assertIn("ready; board server", done.stderr)
             # An MCP client chooses the working directory, so the lease file lives under the home folder, one per actor.
@@ -313,7 +357,7 @@ class StdioTests(unittest.TestCase):
             self.assertTrue(leases.is_file(), list(home.rglob("*")))
             self.assertEqual(stat.S_IMODE(os.stat(leases).st_mode), 0o600)
             self.assertEqual(stat.S_IMODE(os.stat(leases.parent).st_mode), 0o700)
-            self.assertEqual(list(REPO.glob(".agilevow")), [])
+            self.assertEqual(files_in_repo_data(), before, "the MCP session wrote into the folder it was started in")
 
 
 class StreamHygieneTests(unittest.TestCase):
