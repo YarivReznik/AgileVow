@@ -19,7 +19,7 @@ To finish:
 - Move to validation: `python3 -m agilevow client move TASK post_validation`.
 - Never mark a card Done. There is no such move and no workaround. A card is Done only when `python3 -m agilevow review submit --task TASK-ID --report FILE` passes every criterion and every principle (`TASK-ID` is the `task-...` id that `client tasks` prints).
 - Validate honestly: `review prepare`, inspect the work, fill every row with what you observed, then `review submit`. On a fail the card returns to Review with expected, avoid and fix. Claim the repair, fix it, and validate again.
-- You cannot pass a card you worked on (claimed, or recorded its evidence, ticks or corrections): the board refuses it. You may fail your own card. For a pass, hand it to a different reviewer, a person or a second agent, and never put another name in the report to get around it.
+- You cannot pass a card you worked on (claimed, or recorded its evidence, ticks or corrections): the board refuses it. You may fail your own card. For a pass, hand the card to a reviewer who did not work on it: a person, or a second agent running under its own `AGILEVOW_ACTOR`. `review submit` signs the report with the actor running it and refuses any other name.
 
 Before you switch to other work:
 - Release the card with a handoff note, which becomes its next step: `python3 -m agilevow client release TASK --note "HANDOFF"`.

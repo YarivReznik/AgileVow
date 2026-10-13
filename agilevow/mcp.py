@@ -197,14 +197,14 @@ def t_audit_board(board, args):
 
 
 def t_prepare_review(board, args):
-    return dict(review.prepare(board.fresh(_find(board, args))), reviewer=board.actor)
+    return review.prepare(board.fresh(_find(board, args)), reviewer=board.actor)
 
 
 def t_submit_review(board, args):
     found = board.fresh(_find(board, args))
     # Over MCP the reviewer is the actor this server runs as, whatever the report says: an agent refused for passing its
     # own card must not be able to try again under another name typed into the report.
-    done = review.submit(_api(board), found, dict(args["report"], reviewer=board.actor))
+    done = review.submit(_api(board), found, dict(args["report"], reviewer=board.actor), actor=board.actor)
     return {"task": _brief(done, _plans(board)), "status": done["status"],
             "next": "Done." if done["status"] == "done" else "A check failed: the card is back in review with a repair list. Claim it, fix it, and validate again."}
 

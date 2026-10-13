@@ -79,7 +79,7 @@ python3 -m agilevow review prepare --task TASK-ID --report /tmp/report.json
 python3 -m agilevow review submit  --task TASK-ID --report /tmp/report.json
 ```
 
-`prepare` writes a pending report and will not overwrite an existing file. Fill in `reviewer` and `summary`, then for every row in `checks` and `principles`:
+Run both as the reviewer (`AGILEVOW_ACTOR`, or `--actor`). `prepare` writes a pending report signed with that name and will not overwrite an existing file; `submit` refuses a report signed with any other name, so a review cannot be passed off as someone else's. Fill in `summary`, then for every row in `checks` and `principles`:
 
 ```json
 {"criterion": 0, "acceptance": "The README has install and run steps that work on a clean machine.",

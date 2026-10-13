@@ -194,7 +194,8 @@ function findLeaks({scope, ignore}) {
   await refusal.waitFor();
   expectRefusal = false; assert.equal(refusals.length,1,'the worker passing its own card must be refused exactly once');
   assert.doesNotMatch(await refusal.innerText(),/conflict|stale|no longer valid/i,'a refusal is not shown as an edit conflict');
-  assert.match(await refusal.innerText(),/change “Acting as”/,'the refusal says how to act as someone else');
+  assert.match(await refusal.innerText(),/Ask someone who did not work on this card/,'the refusal points to another reviewer, not to another name');
+  assert.doesNotMatch(await refusal.innerText(),/Acting as/,'the refusal must not teach the worker how to pose as someone else');
   assert.equal((await api('/api/tasks/item?id='+taskId)).task.status,'post_validation');
   // What a reviewer does: close the task (the page behind an open task cannot be edited), act as yourself, reopen it.
   const reopenAs = async name => { await page.locator('[data-close="task-dialog"]').click(); await actAs(name);

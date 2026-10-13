@@ -196,16 +196,33 @@ class ClientTests(unittest.TestCase):
             self.board.action(first, "transition", status="done")
         first = self.board.action(first, "transition", status="post_validation")
 
+        def fill(path, **extra):
+            filled = json.loads(path.read_text())
+            filled.update(summary="Inspected the goals and the principle", **extra)
+            for row in filled["checks"] + filled["principles"]:
+                row.update(result="pass", method="Read notes.md", observations="It matches what the task asked for",
+                           evidence=["notes.md"])
+            path.write_text(json.dumps(filled))
+
+        # The worker cannot sign a pass with another name: the reviewer is whoever runs the command, as `prepare` fills in.
         report = self.root / "report.json"
-        args = ["--task", first["id"], "--report", str(report), "--url", self.url]
+        args = ["--task", first["id"], "--report", str(report), "--url", self.url, "--actor", "worker"]
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(review.main(["prepare", *args]), None)
-        filled = json.loads(report.read_text())
-        filled.update(reviewer="qa", summary="Inspected the goals and the principle")
-        for row in filled["checks"] + filled["principles"]:
-            row.update(result="pass", method="Read notes.md", observations="It matches what the task asked for",
-                       evidence=["notes.md"])
-        report.write_text(json.dumps(filled))
+        self.assertEqual(json.loads(report.read_text())["reviewer"], "worker")
+        fill(report, reviewer="qa-bot")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(review.main(["submit", *args]), 1)
+        self.assertIn("you are acting as 'worker'", err.getvalue())
+        self.assertEqual(self.board.fresh(first)["status"], "post_validation")
+
+        # Someone who did not do the work reviews it, as themselves.
+        report = self.root / "report-qa.json"
+        args = ["--task", first["id"], "--report", str(report), "--url", self.url, "--actor", "qa"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(review.main(["prepare", *args]), None)
+        fill(report)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             review.main(["submit", *args])

@@ -8,10 +8,10 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 
-def prepare(task):
+def prepare(task, reviewer=''):
     if task['status'] != 'post_validation':
         raise ValueError('Task must be in Post validation')
-    report = {'task_id': task['id'], 'revision': task['revision'], 'reviewer': '',
+    report = {'task_id': task['id'], 'revision': task['revision'], 'reviewer': reviewer,
             'principles_sha256': task.get('understanding_context', {}).get('principles_sha256'),
             'summary': '',
             'principles': [{**p, 'result': 'pending', 'method': '', 'observations': '', 'evidence': [], 'expected': '', 'avoid': '', 'fix': ''}
@@ -56,7 +56,11 @@ def verdict(task, report):
     return 'review' if failures else 'done'
 
 
-def submit(api, task, report):
+def _same(name):
+    return ' '.join(str(name or '').split()).casefold()
+
+
+def submit(api, task, report, actor=None):
     """Run the guarded `validate`, then retain the whole report on the card as a decision comment. `api(route, body=None)`
     returns parsed JSON. Validating first means a refused report (a worker passing its own card, a stale revision) leaves
     nothing behind; the validation itself stores every row, and the comment keeps the report exactly as written. The
@@ -64,6 +68,11 @@ def submit(api, task, report):
     status = verdict(task, report)
     body = json.dumps(report, ensure_ascii=False)
     if len(body) > 11000: raise ValueError('Report too large for retained card comment')
+    # The reviewer is whoever is acting, never a name typed into the report: otherwise an agent refused for passing its
+    # own card could submit the same report again under another name. The command line and MCP both pass `actor`.
+    if actor is not None and _same(report['reviewer']) != _same(actor):
+        raise ValueError(f"the report names {report['reviewer']!r} as the reviewer, but you are acting as {actor!r}. "
+                         "A review is submitted by whoever reviews, as themselves; it cannot be signed with another name.")
     actor = report['reviewer']
     def row(check, key):
         return {key: check[key], 'passed': check['result']=='pass',
@@ -99,6 +108,8 @@ def _main(argv):
     p.add_argument('--task', required=True)
     p.add_argument('--report', type=Path, required=True)
     p.add_argument('--url', default=os.environ.get('AGILEVOW_URL', 'http://127.0.0.1:8765'))
+    p.add_argument('--actor', default=os.environ.get('AGILEVOW_ACTOR') or 'agent',
+                   help="who is reviewing (default: $AGILEVOW_ACTOR or 'agent'); prepare puts it in the report and submit refuses any other name")
     a = p.parse_args(argv)
     def api(route, body=None):
         request = Request(a.url.rstrip('/')+route, data=json.dumps(body).encode() if body is not None else None,
@@ -106,11 +117,11 @@ def _main(argv):
         with urlopen(request, timeout=15) as r: return json.load(r)
     task = api('/api/tasks/item?id='+a.task)['task']
     if a.operation == 'prepare':
-        with a.report.open('x') as f: json.dump(prepare(task), f, indent=2)
+        with a.report.open('x') as f: json.dump(prepare(task, reviewer=a.actor), f, indent=2)
         print('Prepared pending report; run relevant tests and inspect artifacts before completing checks.')
         return
     report = json.loads(a.report.read_text())
-    task = submit(api, task, report)
+    task = submit(api, task, report, actor=a.actor)
     print(json.dumps({'task':task['id'], 'status':task['status']}))
 
 

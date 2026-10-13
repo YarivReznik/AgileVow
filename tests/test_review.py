@@ -1,5 +1,5 @@
 import unittest
-from agilevow.review import prepare, verdict
+from agilevow.review import prepare, submit, verdict
 
 class ReviewTests(unittest.TestCase):
     def setUp(self):
@@ -32,3 +32,22 @@ class PrincipleReviewTests(unittest.TestCase):
         self.assertEqual(verdict(t,r),'review')
         t['understanding_context']['principles_sha256']='changed'
         with self.assertRaises(ValueError):verdict(t,r)
+
+class SignedByWhoeverSubmitsTests(unittest.TestCase):
+    """The reviewer is whoever submits the report, never a name typed into it (the CLI and MCP both pass `actor`)."""
+    def setUp(self):
+        self.t=dict(id='t',revision=3,status='post_validation',acceptance=['Works'])
+        self.r=prepare(self.t,reviewer='claude');self.r['summary']='Looked'
+        self.r['checks'][0].update(result='pass',method='Ran it',observations='It works',evidence=['out.txt'])
+        self.calls=[]
+        self.api=lambda route,body=None:(self.calls.append(route),{'task':dict(self.t,status='done',revision=4)})[1]
+    def test_prepare_fills_in_who_is_reviewing(self):
+        self.assertEqual(self.r['reviewer'],'claude')
+    def test_another_name_in_the_report_is_refused_before_anything_is_sent(self):
+        self.r['reviewer']='qa-bot'
+        with self.assertRaisesRegex(ValueError,"you are acting as 'claude'"):submit(self.api,self.t,self.r,actor='claude')
+        self.assertEqual(self.calls,[])
+    def test_the_same_name_however_it_is_typed_is_accepted(self):
+        self.r['reviewer']='  Claude '
+        submit(self.api,self.t,self.r,actor='claude')
+        self.assertEqual(self.calls,['/api/tasks/action','/api/tasks/comment'])

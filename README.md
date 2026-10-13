@@ -119,10 +119,11 @@ agilevow: POST /api/tasks/action: HTTP 409 {"error": "transition from post_valid
 The last refusal is the point: there is no move to Done. Someone else validates instead: a passing validation from anyone who claimed the card or recorded its evidence, ticks or corrections is refused, so alice cannot pass her own work. Here bob reviews it. `review prepare` writes a report with one pending row per criterion and per principle; fill every row from what you actually inspected, then submit it:
 
 ```sh
+export AGILEVOW_ACTOR=bob
 python3 -m agilevow review prepare --task TASK-ID --report /tmp/report.json
 ```
 
-`TASK-ID` is the `task-...` id from `client tasks`; `prepare` refuses to overwrite an existing report file. For each row set `result` (`pass` or `fail`), `method`, `observations` and `evidence` (a list of references); a `fail` also needs `expected`, `avoid` and `fix`. Set `reviewer` (here `bob`) and `summary` at the top. Then:
+`TASK-ID` is the `task-...` id from `client tasks`; `prepare` refuses to overwrite an existing report file. For each row set `result` (`pass` or `fail`), `method`, `observations` and `evidence` (a list of references); a `fail` also needs `expected`, `avoid` and `fix`. `prepare` signs the report with who is acting (`AGILEVOW_ACTOR`, or `--actor`), here `bob`; set `summary` at the top. Then:
 
 ```sh
 python3 -m agilevow review submit --task TASK-ID --report /tmp/report.json
@@ -132,7 +133,7 @@ python3 -m agilevow review submit --task TASK-ID --report /tmp/report.json
 {"task": "task-<id>", "status": "done"}
 ```
 
-With `"reviewer": "alice"` the same report is refused with `alice worked on this task, so cannot pass it`. A failing report from the worker is accepted, since it can only send the card back. With any `fail` row the status would be `review` instead, and the card would carry a correction checklist. [docs/WORKFLOW.md](docs/WORKFLOW.md) walks that loop, and [docs/AGENTS-SNIPPET.md](docs/AGENTS-SNIPPET.md) is a block to paste into an agent's instructions so it uses the board this way.
+Run as alice, the review is refused with `alice worked on this task, so cannot pass it`, and alice cannot sign it with bob's name either: `submit` refuses a report whose reviewer is not the actor running it. A failing report from the worker is accepted, since it can only send the card back. With any `fail` row the status would be `review` instead, and the card would carry a correction checklist. [docs/WORKFLOW.md](docs/WORKFLOW.md) walks that loop, and [docs/AGENTS-SNIPPET.md](docs/AGENTS-SNIPPET.md) is a block to paste into an agent's instructions so it uses the board this way.
 
 ## What a card's life looks like
 
