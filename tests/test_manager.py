@@ -36,6 +36,20 @@ class ValidationFlowTests(unittest.TestCase):
         self.assertEqual(audit(rows[:2],100)['next_task'],'fix')
 
 
+class CriteriaAuthorTests(unittest.TestCase):
+    """A card whose worker also wrote its criteria is flagged: an independent reviewer does not help if the bar was self-set."""
+    def kinds(self, t):
+        return [f for f in audit([t],100)['findings'] if f['kind']=='criteria_by_worker']
+    def test_flagged_while_worked_on_or_reviewed(self):
+        for status in ('doing','review','post_validation'):
+            self.assertEqual(self.kinds(task('a',status,owner='Agent 1',criteria_by=' agent  1',claim_expires_at=200)),
+                             [{'kind':'criteria_by_worker','task':'a','actor':'Agent 1'}], status)
+    def test_not_flagged_when_someone_else_wrote_them_or_nobody_works_it(self):
+        self.assertEqual(self.kinds(task('a','doing',owner='agent-1',criteria_by='lead',claim_expires_at=200)),[])
+        self.assertEqual(self.kinds(task('a','ready',criteria_by='agent-1')),[])
+        self.assertEqual(self.kinds(task('a','done',owner='agent-1',criteria_by='agent-1')),[])
+        self.assertEqual(self.kinds(task('a','doing',owner='agent-1',claim_expires_at=200)),[])   # older cards: author unknown
+
 class ManagerOutputTests(unittest.TestCase):
     def test_a_ready_card_is_not_flagged_for_principles_nobody_could_have_read_yet(self):
         rows = [task('a', principles_need_acknowledgement=True),

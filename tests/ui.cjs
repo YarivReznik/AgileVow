@@ -126,6 +126,11 @@ function findLeaks({scope, ignore}) {
   };
   await act('Claim & start');
   assert.equal((await api('/api/tasks/item?id='+taskId)).task.status,'doing');
+  // the same person wrote the criteria and is now doing the work: the card says so, so a reviewer judges the bar too
+  const ownCriteria = page.locator(`.task-card[data-task-id="${taskId}"] .badge`,{hasText:'Own criteria'});
+  await ownCriteria.waitFor({state:'attached'});
+  assert.match(await ownCriteria.getAttribute('title'),/also wrote its acceptance criteria/);
+  passed('A card whose worker wrote its own criteria is marked for the reviewer');
   assert.equal(await page.getByRole('button',{name:'Recover expired claim',exact:true}).count(),0);
   assert(!(await page.locator('#task-body').innerText()).includes('1970'));
   for (let i=0;i<2;i++) {

@@ -7,6 +7,8 @@ import urllib.error
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from .board import actor_key
+
 
 def prepare(task, reviewer=''):
     if task['status'] != 'post_validation':
@@ -19,6 +21,11 @@ def prepare(task, reviewer=''):
             'checks': [{'criterion': i, 'acceptance': a, 'result': 'pending',
                         'method': '', 'observations': '', 'evidence': [], 'expected': '', 'avoid': '', 'fix': ''}
                        for i, a in enumerate(task['acceptance'])]}
+    by, owner = task.get('criteria_by') or '', task.get('owner') or ''
+    if by and actor_key(by) == actor_key(owner):
+        # Independence of the reviewer does not help if the worker set its own bar: say so where the reviewer reads.
+        report['criteria_note'] = (f'{owner} did this work and also wrote these acceptance criteria. Before passing, check that '
+                                   'the criteria really test the outcome, not only that they were met.')
     return report
 
 
@@ -56,10 +63,6 @@ def verdict(task, report):
     return 'review' if failures else 'done'
 
 
-def _same(name):
-    return ' '.join(str(name or '').split()).casefold()
-
-
 def submit(api, task, report, actor=None):
     """Run the guarded `validate`, then retain the whole report on the card as a decision comment. `api(route, body=None)`
     returns parsed JSON. Validating first means a refused report (a worker passing its own card, a stale revision) leaves
@@ -70,7 +73,7 @@ def submit(api, task, report, actor=None):
     if len(body) > 11000: raise ValueError('Report too large for retained card comment')
     # The reviewer is whoever is acting, never a name typed into the report: otherwise an agent refused for passing its
     # own card could submit the same report again under another name. The command line and MCP both pass `actor`.
-    if actor is not None and _same(report['reviewer']) != _same(actor):
+    if actor is not None and actor_key(report['reviewer']) != actor_key(actor):
         raise ValueError(f"the report names {report['reviewer']!r} as the reviewer, but you are acting as {actor!r}. "
                          "A review is submitted by whoever reviews, as themselves; it cannot be signed with another name.")
     actor = report['reviewer']

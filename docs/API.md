@@ -132,6 +132,7 @@ curl -s -H 'Content-Type: application/json' -d '{"actor":"alice","source_key":"d
 | `id`, `revision`, `plan_id`, `board_id`, `key`, `title`, `outcome` | Identity and the authored text. |
 | `acceptance` | The criteria, an array of strings. A criterion is referred to by its 0-based index. |
 | `status`, `owner`, `claim_expires_at` | Lifecycle. `owner` is the actor who claimed it; `claim_expires_at` is null outside `doing`. |
+| `criteria_by` | The actor who wrote the outcome and acceptance criteria: whoever created or imported the task, replaced by whoever later corrects either. Set by the server only; a request that names it is refused. Empty on tasks made before it existed. |
 | `depends_on` | Task ids in the same plan. |
 | `priority` | 0 to 3, default 2. Lower is more urgent: the manager sorts ascending. |
 | `next_step`, `blocked_reason` | Handoff text; the reason for `blocked`. |
@@ -212,7 +213,7 @@ A task inherits its plan's sources and cannot replace their recorded fingerprint
 **Update** (`/api/tasks/update`) changes `title`, `outcome`, `acceptance`, `depends_on`, `priority`, `owner`, `next_step`, `links`, `evidence`, `sources`, `tags`, `checklist_checks` and `correction_checks`. Status is never changed here. `attachments` and `comments` cannot be edited. A request that changes nothing is `400 no task changes supplied`.
 
 - A task in `doing` can be edited only by its owner, with the `lease` (corrections, below, are the exception); without one the reply is `400 lease is required`, with a wrong or expired one `409`.
-- **Corrections.** Changing `outcome`, `acceptance`, `depends_on` or `sources` requires a `note` and is recorded as `correct_task`. It clears `evidence`, `checklist_checks` and `corrections`, and moves a task that was `doing`, `review`, `post_validation` or `done` back to `backlog` with no owner and no claim. It needs no lease and revokes any lease. Validation history is kept. You cannot set new evidence or ticks in the same request; save the correction first.
+- **Corrections.** Changing `outcome`, `acceptance`, `depends_on` or `sources` requires a `note` and is recorded as `correct_task`. It clears `evidence`, `checklist_checks` and `corrections`, and moves a task that was `doing`, `review`, `post_validation` or `done` back to `backlog` with no owner and no claim. It needs no lease and revokes any lease. Validation history is kept. A correction of `outcome` or `acceptance` makes its actor the task's `criteria_by`. You cannot set new evidence or ticks in the same request; save the correction first.
 - `depends_on` ids must be in the same plan, must exist and must not form a cycle.
 - Every array field you send (`evidence`, `links`, `tags`, `acceptance`, `depends_on`, `sources`) replaces the stored array.
 

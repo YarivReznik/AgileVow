@@ -40,6 +40,8 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(result["serverInfo"]["name"], "agilevow")
         self.assertEqual(result["capabilities"], {"tools": {"listChanged": False}})
         self.assertIn("no move to done", result["instructions"])
+        # a second AgileVow server in the same session is not an independent reviewer: the agent is told not to use one
+        self.assertIn("Never call another AgileVow server's submit_review", result["instructions"])
 
     def test_ids_are_echoed_including_zero_and_strings(self):
         for mid in (0, "abc", 7):
@@ -263,6 +265,12 @@ class LiveTools(unittest.TestCase):
         self.assertEqual(cards["crash-reporting"]["priority"], 0)
         is_error, _ = self.call("move_task", task="release", status="ready")
         self.assertTrue(is_error)  # the release waits for the listing and the privacy labels
+        # the agent that set up the board wrote every card's criteria, so working one of them is flagged for the reviewer
+        self.assertEqual(self.ok("get_task", task="testflight")["criteria_by"], "claude")
+        digest = self.ok("get_context", task="testflight")["principles_sha256"]
+        self.ok("claim_task", task="testflight", principles_sha256=digest)
+        own = [f for f in self.ok("audit_board", board="mobile-launch")["findings"] if f["kind"] == "criteria_by_worker"]
+        self.assertEqual(own, [{"kind": "criteria_by_worker", "task": cards["testflight"]["id"], "actor": "claude"}])
 
     def test_a_lease_token_is_stored_for_the_agent_and_never_shown_to_the_model(self):
         self.plan_a_board()

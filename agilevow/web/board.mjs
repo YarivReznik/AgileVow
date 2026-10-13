@@ -27,6 +27,8 @@ let seenVersion = null;   // the server's change marker when the board was last 
 try { const saved = JSON.parse(sessionStorage.getItem(leaseKey) || '{}'); if (saved && typeof saved === 'object' && !Array.isArray(saved)) leases = saved; } catch { /* Storage can be disabled. */ }
 function rememberLease(id, lease) { if (lease) leases[id] = {token:lease,actor:actor()}; else delete leases[id]; try { sessionStorage.setItem(leaseKey, JSON.stringify(leases)); } catch { /* In-memory claims still work. */ } }
 function actor() { return $('actor').value.trim() || 'local-user'; }
+// The server compares names this way too (board.actor_key): no case, no extra spaces.
+const sameActor = (a, b) => String(a || '').trim().split(/\s+/).join(' ').toLocaleLowerCase() === String(b || '').trim().split(/\s+/).join(' ').toLocaleLowerCase();
 function leaseFor(task) { return task.status === 'doing' && leases[task.id]?.actor === actor() ? leases[task.id].token : undefined; }
 function el(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = String(text); return node; }
 function append(parent, ...children) { parent.append(...children.filter(Boolean)); return parent; }
@@ -224,6 +226,9 @@ function renderBoard() {
       if (task.corrections?.some(c => !c.checked)) flags.append(el('span','badge blocked',t('badge.needsCorrection')));
       if (task.source_changed) flags.append(el('span','badge warn',t('badge.sourceChanged')));
       if (task.status === 'doing' && expired(task)) flags.append(el('span','badge blocked',t('badge.claimExpired')));
+      if (['doing','review','post_validation'].includes(task.status) && task.criteria_by && sameActor(task.criteria_by, task.owner)) {
+        const own = el('span','badge warn',t('badge.ownCriteria')); own.title = t('badge.ownCriteriaTitle',{actor:task.owner}); flags.append(own);
+      }
       const waiting = (task.depends_on || []).filter(id => state.tasks.find(tk => tk.id === id)?.status !== 'done').length;
       if (waiting) flags.append(el('span','badge',t('badge.waitingOn',{n:waiting})));
       if (task.blocked_reason && task.status === 'blocked') flags.append(el('span','badge blocked',t('badge.blocked')));

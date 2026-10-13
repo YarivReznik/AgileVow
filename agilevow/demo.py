@@ -200,6 +200,7 @@ def _story(worker, reviewer):
 def seed(url, root):
     """Fill an empty server: one board, two mini projects, eleven tasks spread over the columns."""
     leases = Path(root) / task_board.DATA_DIR / "leases.json"
+    lead = Board(actor="lead", url=url, leases=Path(root) / task_board.DATA_DIR / "leases-lead.json")   # plans: sets the criteria
     worker = Board(actor="agent-1", url=url, leases=leases)
     reviewer = Board(actor="reviewer", url=url, leases=Path(root) / task_board.DATA_DIR / "leases-reviewer.json")
     for name, text in FILES.items():
@@ -207,9 +208,9 @@ def seed(url, root):
         if not path.exists():       # never overwrite a file somebody already has
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
-    board = worker.create_board(BOARD["source_key"], BOARD["title"], BOARD["description"], BOARD["scope"], PRINCIPLES)
-    worker.import_plan(board, HARDENING)
-    worker.import_plan(board, LAUNCH)
+    board = lead.create_board(BOARD["source_key"], BOARD["title"], BOARD["description"], BOARD["scope"], PRINCIPLES)
+    lead.import_plan(board, HARDENING)
+    lead.import_plan(board, LAUNCH)
     _story(worker, reviewer)
     return len(HARDENING["tasks"]) + len(LAUNCH["tasks"])
 

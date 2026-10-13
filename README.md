@@ -185,15 +185,16 @@ Environment for `client`, `manager` and `review`:
 
 Everything above can also be done by talking to your coding agent. `agilevow mcp` serves the board as [Model Context Protocol](https://modelcontextprotocol.io) tools, so in Claude Code (or Claude Desktop, Cursor, any MCP client) you ask in plain words and the agent creates the board, plans the work, claims cards, records evidence and reports back. It goes through the running server, so every rule above still applies, and the board page shows each change within a couple of seconds.
 
-Set it up once per project: start the board, then register two agents, one that works and one that reviews (a card can only be passed by someone who did not work on it).
+Set it up once per project: start the board, then register the agent that does the work.
 
 ```sh
 python3 -m agilevow serve --root /path/to/project
 claude mcp add agilevow -e AGILEVOW_ACTOR=claude -- agilevow mcp
-claude mcp add agilevow-review -e AGILEVOW_ACTOR=reviewer -- agilevow mcp
 ```
 
 `agilevow` is the command `pip install .` puts on your path. Without installing, use `-e PYTHONPATH=/path/to/clone -- python3 -m agilevow mcp`, and add `-e AGILEVOW_URL=http://127.0.0.1:PORT` if the board runs on another port.
+
+Register only the worker here. The reviewer gets its own session ([below](#reviewing-from-a-separate-session)), because a card can only be passed by someone who did not work on it, and a reviewer inside the worker's chat shares what the worker saw and assumed.
 
 ### A simple request
 
@@ -215,13 +216,27 @@ The agent turns that into:
 2. **Two mini projects** (`import_plan`, once each): every task with an outcome, acceptance criteria, a priority and its dependencies, so the release card cannot become Ready before the listing and the labels are Done.
 3. **A summary back to you**: the cards, their order and anything it had to assume.
 
-Then the rest of the work happens in the same chat:
+Then the work happens in the same chat:
 
 > **You:** Start on crash reporting.
 
-> **You:** Review the TestFlight card as the reviewer.
+When the card reaches Post validation the agent stops and asks you for a review. It may fail its own work, but it cannot pass it.
 
-The second request goes through `agilevow-review`. It inspects the evidence and passes or fails every criterion and every principle; a pass from the agent that did the work is refused. For a review that does not share the worker's blind spots, run it in a separate session, have another person do it, or do it yourself on the page.
+### Reviewing from a separate session
+
+Review the card on the page yourself, or start a second session that can reach only the reviewer. [`examples/agilevow-review.mcp.json`](examples/agilevow-review.mcp.json) defines one server, `agilevow-review`, acting as `reviewer`:
+
+```sh
+claude --strict-mcp-config --mcp-config /path/to/agilevow-review.mcp.json
+```
+
+`--strict-mcp-config` loads only the servers in that file, so the reviewer session cannot reach the worker's `agilevow` server, and the worker's session never has the reviewer's. Do not register both servers in one client: the board cannot tell which chat a call came from, so a reviewer there is the worker under another name. The worker is told never to pass its own card through another AgileVow server, but an instruction is not a lock; keeping the servers in separate sessions is. (Without installing, change the file's command to `python3` with `"args": ["-m", "agilevow", "mcp"]` and add `"PYTHONPATH": "/path/to/clone"` to its `env`.)
+
+> **You (in the reviewer session):** Review the crash reporting card.
+
+It calls `prepare_review`, inspects the evidence, passes or fails every criterion and every principle, and submits. The server refuses a pass from anyone who claimed the card or changed its evidence.
+
+**Who wrote the bar.** An independent reviewer does not help if the worker set the bar it is judged against. Every card records who wrote its acceptance criteria, when it is created or imported and whenever they are rewritten; the server sets this, a request cannot. When the agent doing a card also wrote its criteria, the card shows **Own criteria**, `audit_board` reports `criteria_by_worker`, and the review report asks the reviewer to check that the criteria really test the outcome, not only that they were met. In the example above the agent that set up the board wrote every card's criteria, so each card it works on carries the mark: that review is where a weak criterion gets caught.
 
 What an agent cannot do from a chat, on purpose: change a board's principles once it exists, move a card straight to Done, or see a lease token. Changing principles or a card's scope is done on the page, by you. The tools, their arguments and the setup for other clients: [docs/MCP.md](docs/MCP.md).
 

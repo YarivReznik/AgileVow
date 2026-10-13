@@ -97,6 +97,11 @@ def _request(req, allowed):
     return _text(req.get("actor", ""), "actor", 128, True)
 
 
+def actor_key(name):
+    """How two actor names are compared everywhere (validation, review, audit): no case, no extra spaces."""
+    return " ".join(str(name or "").split()).casefold()
+
+
 def _key(value, name="key"):
     value = _text(value, name, 160, True)
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", value):
@@ -615,7 +620,7 @@ class TaskBoard:
             raise TaskError("duplicate dependency")
         return result
 
-    def _new_task(self, req, plan, task_id=None):
+    def _new_task(self, req, plan, task_id=None, author=""):
         criteria = self._acceptance(req.get("acceptance"))
         status = _text(req.get("status", "backlog"), "status", 20, True)
         if status not in {"backlog", "ready"}:
@@ -627,6 +632,8 @@ class TaskBoard:
                 "board_id": plan["board_id"],
                 "key": _key(req.get("key")), "title": _text(req.get("title"), "title", 300, True),
                 "outcome": _text(req.get("outcome"), "outcome", 8000, True), "acceptance": criteria,
+                # Who wrote the goal and the criteria this card is checked against. Set by the server, never by a request.
+                "criteria_by": author,
                 "depends_on": self._depends(req.get("depends_on", [])),
                 "priority": _int(req.get("priority", 2), "priority", 0, 3), "status": status,
                 "owner": _text(req.get("owner", ""), "owner", 128),
@@ -667,7 +674,7 @@ class TaskBoard:
         actor = _request(req, TASK_FIELDS | {"actor", "plan_id"})
         with self._transaction(True) as db:
             plan = self._plan(db, req.get("plan_id"))
-            task = self._new_task(req, plan)
+            task = self._new_task(req, plan, author=actor)
             self._validate_graph(db, task)
             self._validate_links(db, task)
             if task["status"] == "ready":
@@ -706,7 +713,7 @@ class TaskBoard:
                 if any(key not in keys for key in dependencies):
                     raise TaskError("unknown local dependency key")
                 converted = dict(row, depends_on=[keys[key] for key in dependencies])
-                tasks.append(self._new_task(converted, plan, keys[_key(row["key"])]))
+                tasks.append(self._new_task(converted, plan, keys[_key(row["key"])], author=actor))
             db.execute("INSERT INTO task_plans(id,board_id,source_key,body,import_fingerprint) VALUES(?,?,?,?,?)", (plan["id"], plan["board_id"], source_key, _dump(plan), fingerprint))
             for task in tasks:
                 db.execute("INSERT INTO task_items(id,plan_id,task_key,body) VALUES(?,?,?,?)", (task["id"], plan["id"], task["key"], _dump(task)))
@@ -789,6 +796,8 @@ class TaskBoard:
                 if not note:
                     raise TaskError("criteria, outcome, dependency or source correction requires a note")
                 self._correct(task)
+                if {"outcome", "acceptance"} & set(changes):
+                    task["criteria_by"] = actor   # whoever rewrote the goal now owns the criteria
                 lease_hash = None
                 changes.append("evidence")
             elif previous == "doing":
@@ -937,8 +946,7 @@ class TaskBoard:
         workers = {task.get("owner") or ""} | {event.get("actor") or "" for event in events
                                                  if event.get("op") == "claim"
                                                  or (event.get("op") == "update_task" and WORK_CHANGES & set(event.get("changes") or ()))}
-        same = lambda name: " ".join(str(name).split()).casefold()
-        if same(actor) in {same(name) for name in workers if name}:
+        if actor_key(actor) in {actor_key(name) for name in workers if name}:
             raise TaskError(f"{actor} worked on this task, so cannot pass it: a passing validation must come from someone who "
                             "never claimed it or recorded its evidence, ticks or corrections", 403)
 

@@ -92,6 +92,20 @@ class TaskBoardTests(unittest.TestCase):
             self.action(task, "validate", actor="first", validation=self.pass_report(task))
         self.assertEqual(self.action(task, "validate", actor="reviewer", validation=self.pass_report(task))["task"]["status"], "done")
 
+    def test_the_server_records_who_wrote_a_cards_criteria(self):
+        made = self.task(status="backlog")
+        self.assertEqual(made["criteria_by"], "planner")
+        imported = self.store.import_plan({"actor": "lead", "board_id": self.board["id"], "source_key": "imp", "title": "Imported", "sources": [],
+                                           "tasks": [{"key": "x", "title": "X", "outcome": "o", "acceptance": ["c"], "status": "ready"}]})
+        self.assertEqual(imported["tasks"][0]["criteria_by"], "lead")
+        before = self.task(key="before", status="backlog")
+        resourced = self.update(made, actor="editor", depends_on=[before["id"]], note="Wait for the other card")
+        self.assertEqual(resourced["criteria_by"], "planner")   # a correction that leaves the criteria alone keeps their author
+        rewritten = self.update(resourced, actor="editor", acceptance=["A harder bar"], note="Raise the bar")
+        self.assertEqual(rewritten["criteria_by"], "editor")   # whoever rewrites the criteria now owns them
+        with self.assertRaises(TaskError):                       # and nobody can set it directly
+            self.update(rewritten, actor="editor", criteria_by="someone-else")
+
     def assert_error(self, expected_status, call, *args, **kwargs):
         with self.assertRaises(TaskError) as caught:
             call(*args, **kwargs)

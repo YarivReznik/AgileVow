@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "agilevow-review": {
+      "command": "agilevow",
+      "args": ["mcp"],
+      "env": {"AGILEVOW_ACTOR": "reviewer"}
+    }
+  }
+}

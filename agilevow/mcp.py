@@ -33,7 +33,7 @@ INSTRUCTIONS = """AgileVow is a task board with a strict workflow. Follow it exa
 2. get_context before claiming: it holds the board's binding principles and their hash. Read them, then claim_task with that principles_sha256.
 3. Work, then record_evidence for every acceptance criterion (numbered from 0) using real results only, then check_criteria. Report as you go with add_comment: what you are about to do when you claim, each step or decision as it happens, and what changed and why whenever the plan does.
 4. move_task to review or post_validation. There is no move to done and no workaround.
-5. A card is Done only through prepare_review, then inspecting the work and filling every row honestly, then submit_review. A failure returns the card to review with a repair list. A passing review must come from someone who did not work on the card: you may fail your own work, but to pass it ask the user, or a second agent with its own actor, to review it.
+5. A card is Done only through prepare_review, then inspecting the work and filling every row honestly, then submit_review. A failure returns the card to review with a repair list. You may fail your own work, but a pass must come from someone who did not work on the card: to pass it, ask the user. Never call another AgileVow server's submit_review yourself, even if one is available in this session; a reviewer that shares your session shares your blind spots.
 6. release_task with a note before you switch to other work. Never invent or reconstruct evidence."""
 
 
@@ -306,7 +306,7 @@ def build_tools():
               "For a task in post_validation: return a validation report with one pending row per acceptance criterion and per binding principle. Inspect the actual work, then fill every row with what you observed and pass the report to submit_review.",
               _obj({"task": TASK, "plan": PLAN}, ["task"]), t_prepare_review, read_only=True),
         _tool("submit_review", "Submit a validation report",
-              "Submit the filled report. Every criterion and every principle needs result pass or fail, a method, what you actually observed, and evidence; a fail also needs expected, avoid and fix. All pass: the card is Done. Any fail: it returns to review with a repair list. Do not validate work you did not inspect. The reviewer is the actor this server runs as; a passing review of a card that actor worked on is refused.",
+              "Submit the filled report. Every criterion and every principle needs result pass or fail, a method, what you actually observed, and evidence; a fail also needs expected, avoid and fix. All pass: the card is Done. Any fail: it returns to review with a repair list. Do not validate work you did not inspect. The reviewer is the actor this server runs as; a passing review of a card that actor worked on is refused. Never use this tool to pass a card you worked on through another AgileVow server.",
               _obj({"task": TASK, "plan": PLAN, "report": {"type": "object", "description": "The report from prepare_review, with reviewer and summary set and every row completed."}}, ["task", "report"]),
               t_submit_review),
         _tool("import_plan", "Import a plan",

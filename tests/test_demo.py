@@ -46,6 +46,8 @@ class SeedTests(unittest.TestCase):
                 said = [c for c in task.get("comments", []) if c.get("author") == "agent-1"]
                 self.assertTrue(said and said[0]["body"].startswith("Starting:"), task["key"])
         self.assertEqual(len(snap["plans"]), 2)
+        # a lead wrote the criteria and agent-1 did the work, so the reviewer judges the work against a bar it did not set
+        self.assertEqual({t["criteria_by"] for t in snap["tasks"]}, {"lead"})
         self.assertEqual(Counter(t["status"] for t in snap["tasks"]),
                          {"done": 1, "post_validation": 1, "review": 1, "doing": 1, "blocked": 1, "ready": 3, "backlog": 3})
         for task in snap["tasks"]:

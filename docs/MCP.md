@@ -83,7 +83,7 @@ The server sends these rules to the client when the session opens, in its `instr
 2. `get_context`, read the principles, then `claim_task` with the hash.
 3. Work. `record_evidence` for every criterion with real results only, then `check_criteria`.
 4. `move_task` to `review` or `post_validation`. There is no move to Done.
-5. Done is reached only by `prepare_review`, inspecting the work and filling every row honestly, then `submit_review`, by someone other than the worker: the agent may fail its own card, but a pass must come from a second agent or a person.
+5. Done is reached only by `prepare_review`, inspecting the work and filling every row honestly, then `submit_review`. The agent may fail its own card, but a pass must come from someone who did not work on it: to pass it, ask the user. It must never pass its own card through another AgileVow server, even one available in the same session.
 6. `release_task` with a note before switching to other work.
 
 ## What is deliberately missing
@@ -95,13 +95,14 @@ The server sends these rules to the client when the session opens, in its `instr
 
 ## Limits
 
-- **The worker cannot pass its own card.** `submit_review` validates as the actor this server runs as (the report's `reviewer` is replaced by it), and the board refuses a passing validation from anyone who claimed the card or recorded its evidence, ticks or corrections. The agent may submit a failing review of its own card. To reach Done, register a second server with its own actor and let that agent (or you, in the browser or with `review submit`) review it:
+- **The worker cannot pass its own card.** `submit_review` validates as the actor this server runs as (the report's `reviewer` is replaced by it), and the board refuses a passing validation from anyone who claimed the card or recorded its evidence, ticks or corrections. The agent may submit a failing review of its own card. To reach Done, review it yourself (on the page or with `review submit`) or start a **separate** session that can reach only a reviewer server, using [`examples/agilevow-review.mcp.json`](../examples/agilevow-review.mcp.json):
 
   ```sh
-  claude mcp add agilevow-review -e AGILEVOW_ACTOR=reviewer -- agilevow mcp
+  claude --strict-mcp-config --mcp-config /path/to/agilevow-review.mcp.json
   ```
 
-  Actor names are not authenticated, so this stops the default path of an agent grading itself, not one configured to pose as someone else. See [SECURITY.md](../SECURITY.md).
+  `--strict-mcp-config` loads only that file's servers, so the reviewer session cannot reach the worker's server. **Do not register a reviewer server in the worker's client.** The board sees two actor names and cannot tell they came from one chat; a reviewer there shares the worker's context and assumptions. The worker is instructed not to use one, which is a request, not a lock. Actor names are not authenticated, so all of this stops the default path of an agent grading itself, not one configured to pose as someone else. See [SECURITY.md](../SECURITY.md).
+- **Who wrote the criteria is recorded, not prevented.** The server stores `criteria_by` on every card: the actor that created or imported it, replaced by whoever later rewrites its outcome or acceptance criteria. An agent that set up the board and then works one of its cards is allowed to; the card shows **Own criteria**, `audit_board` reports `criteria_by_worker`, and `prepare_review` adds a `criteria_note` asking the reviewer to judge the criteria themselves.
 - **Tools only.** No MCP resources or prompts, no sampling, no logging capability. Tool output over 100,000 characters is truncated with a note.
 - **Protocol versions** `2025-06-18`, `2025-03-26` and `2024-11-05` are accepted; the client's version is echoed when it is one of these, otherwise the newest is offered. Messages are one JSON object per line, and batches are accepted.
 - **Not yet run against an official MCP client SDK or a shipping client.** The test suite drives the server with a hand-written client over real pipes, and checks the framing, the handshake, the schemas and the whole claim-to-Done loop. If a client rejects it, that is a bug to report.

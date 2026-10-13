@@ -8,6 +8,8 @@ import urllib.error
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
+from .board import actor_key
+
 
 def audit(tasks, now, wip_limit=1, stale_seconds=3600):
     by_id = {t['id']: t for t in tasks}
@@ -25,6 +27,8 @@ def audit(tasks, now, wip_limit=1, stale_seconds=3600):
             findings.append({'kind': 'dependencies_unfinished', 'task': t['id'], 'dependencies': unmet})
         if t.get('source_changed'):
             findings.append({'kind': 'sources_changed', 'task': t['id']})
+        if status in ('doing', 'review', 'post_validation') and t.get('criteria_by') and actor_key(t['criteria_by']) == actor_key(t.get('owner')):
+            findings.append({'kind': 'criteria_by_worker', 'task': t['id'], 'actor': t['owner']})
         if t.get('principles_need_acknowledgement') and status in ('doing', 'review', 'post_validation'):
             findings.append({'kind': 'principles_read_required', 'task': t['id']})
         if status == 'post_validation':

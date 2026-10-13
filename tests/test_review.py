@@ -51,3 +51,12 @@ class SignedByWhoeverSubmitsTests(unittest.TestCase):
         self.r['reviewer']='  Claude '
         submit(self.api,self.t,self.r,actor='claude')
         self.assertEqual(self.calls,['/api/tasks/action','/api/tasks/comment'])
+
+class CriteriaNoteTests(unittest.TestCase):
+    def test_the_report_warns_when_the_worker_wrote_the_criteria(self):
+        t=dict(id='t',revision=1,status='post_validation',acceptance=['Works'],owner='agent-1',criteria_by='Agent-1')
+        self.assertIn('also wrote these acceptance criteria',prepare(t,reviewer='qa')['criteria_note'])
+    def test_no_warning_when_someone_else_wrote_them(self):
+        t=dict(id='t',revision=1,status='post_validation',acceptance=['Works'],owner='agent-1',criteria_by='lead')
+        self.assertNotIn('criteria_note',prepare(t,reviewer='qa'))
+

@@ -169,6 +169,7 @@ python3 -m agilevow client release write-readme --note "Pausing: criterion 1 not
 | `dependencies_unfinished` | A `ready`, `doing`, `review` or `post_validation` card depends on one that is not done. |
 | `missing_evidence` | A card in `review`, `post_validation` or `done` has a criterion with no evidence (`criteria` lists the indexes). |
 | `blocked` | A card is `blocked` (`reason` carries the text). |
+| `criteria_by_worker` | A `doing`, `review` or `post_validation` card is owned by the actor who wrote its acceptance criteria (`criteria_by`, set by the server on create, import or a correction of the outcome or criteria). Allowed, but its reviewer should judge whether the criteria test the outcome, not only whether they were met. |
 
 Run it before choosing work and after finishing, blocking or checkpointing. If the audit fails, do not fall back to claiming at random.
 
