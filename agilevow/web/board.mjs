@@ -29,6 +29,8 @@ function rememberLease(id, lease) { if (lease) leases[id] = {token:lease,actor:a
 function actor() { return $('actor').value.trim() || 'local-user'; }
 // The server compares names this way too (board.actor_key): no case, no extra spaces.
 const sameActor = (a, b) => String(a || '').trim().split(/\s+/).join(' ').toLocaleLowerCase() === String(b || '').trim().split(/\s+/).join(' ').toLocaleLowerCase();
+// The person doing a card also wrote the bar it is judged against: flagged (never refused), the same rule as the audit's criteria_by_worker.
+const ownCriteria = task => ['doing','review','post_validation'].includes(task.status) && !!task.criteria_by && sameActor(task.criteria_by, task.owner);
 function leaseFor(task) { return task.status === 'doing' && leases[task.id]?.actor === actor() ? leases[task.id].token : undefined; }
 function el(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = String(text); return node; }
 function append(parent, ...children) { parent.append(...children.filter(Boolean)); return parent; }
@@ -226,7 +228,7 @@ function renderBoard() {
       if (task.corrections?.some(c => !c.checked)) flags.append(el('span','badge blocked',t('badge.needsCorrection')));
       if (task.source_changed) flags.append(el('span','badge warn',t('badge.sourceChanged')));
       if (task.status === 'doing' && expired(task)) flags.append(el('span','badge blocked',t('badge.claimExpired')));
-      if (['doing','review','post_validation'].includes(task.status) && task.criteria_by && sameActor(task.criteria_by, task.owner)) {
+      if (ownCriteria(task)) {
         const own = el('span','badge warn',t('badge.ownCriteria')); own.title = t('badge.ownCriteriaTitle',{actor:task.owner}); flags.append(own);
       }
       const waiting = (task.depends_on || []).filter(id => state.tasks.find(tk => tk.id === id)?.status !== 'done').length;
@@ -300,8 +302,13 @@ function understandingSection(task) {
   }
   return section;
 }
+function ownCriteriaNote(task) {
+  const note = el('p','notice warning own-criteria-note',t('task.ownCriteriaNote',{actor:task.owner})); note.role = 'note';
+  return note;
+}
 function validationSection(task,onSave) {
   const section=append(el('section','section stack validation-section'),el('h3','',t('validation.title')),el('p','help',t('validation.help')));
+  if (ownCriteria(task)) section.append(ownCriteriaNote(task));
   const form=el('form','stack');const inputs=[];
   const summary=field('validation_summary',t('validation.summary'),'',{type:'textarea',required:true});form.append(summary.wrap);
   const requirements=[...task.acceptance.map((text,i)=>({kind:'criterion',key:i,text})),...(task.understanding_context?.principles||[]).map(p=>({kind:'principle',key:p.key,text:t('validation.principleRequirement',{title:p.title,content:p.content})}))];
@@ -510,10 +517,13 @@ function renderTask() {
   const revision = el('span','mono',t('task.revision',{n:task.revision})); revision.id = 'task-revision';
   const meta = append(el('div','detail-meta'),append(el('span','badge'),el('span',`status-dot status-${task.status}`),el('span','',labels[task.status])),el('span','badge',`P${task.priority}`),revision);
   if (task.source_changed) meta.append(el('span','badge warn',t('badge.sourceChanged')));
+  if (ownCriteria(task)) meta.append(el('span','badge warn',t('badge.ownCriteria')));
   const facts = el('dl','detail-facts');
-  for (const [label,value,mono] of [[t('task.owner'),task.owner || t('task.unassigned')],[t('task.claimExpires'),date(task.claim_expires_at)],[t('task.updated'),date(task.updated_at)],[t('task.id'),task.id,true]]) facts.append(append(el('div'),el('dt','',label),el('dd',mono ? 'mono' : '',value)));
+  for (const [label,value,mono] of [[t('task.owner'),task.owner || t('task.unassigned')],[t('task.criteriaBy'),task.criteria_by || t('task.criteriaByUnknown')],[t('task.claimExpires'),date(task.claim_expires_at)],[t('task.updated'),date(task.updated_at)],[t('task.id'),task.id,true]]) facts.append(append(el('div'),el('dt','',label),el('dd',mono ? 'mono' : '',value)));
   const comparison = append(el('details','notice warning'),el('summary','',t('conflict.latestTask')),el('pre','saved-comparison')); comparison.id = 'latest-saved'; comparison.hidden = true;
   append(body,understandingSection(task),meta,facts,error,comparison);
+  // Said once, where it is acted on: in the review form when the card is waiting for one, otherwise under the facts.
+  if (ownCriteria(task) && task.status !== 'post_validation') body.append(ownCriteriaNote(task));
   if(task.validations?.length){const last=task.validations.at(-1);body.append(append(el('section','subtle-panel'),el('h3','',last.result==='pass'?t('validation.passed'):t('validation.failed')),el('p','',last.summary)));}
   if(task.status==='post_validation')body.append(validationSection(task,async result=>{state.selected=result.task;await refresh();await openTask(task.id);notice($('global-notice'),result.task.status==='done'?t('validation.savedDone'):t('validation.savedReturned'),'success');}));
   const actionSection = el('section','action-group subtle-panel'); actionSection.append(el('h3','',t('task.statusOwnership')));

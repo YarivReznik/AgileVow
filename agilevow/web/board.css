@@ -1562,6 +1562,10 @@ dialog::backdrop {
   margin: 3px 0 0;
   overflow-wrap: anywhere;
 }
+/* five facts in two columns: the id, the longest, takes the last row whole instead of leaving a hole beside it */
+.detail-facts > div:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 .detail-facts dt {
   font-size: 10px;
   text-transform: uppercase;

@@ -130,7 +130,10 @@ function findLeaks({scope, ignore}) {
   const ownCriteria = page.locator(`.task-card[data-task-id="${taskId}"] .badge`,{hasText:'Own criteria'});
   await ownCriteria.waitFor({state:'attached'});
   assert.match(await ownCriteria.getAttribute('title'),/also wrote its acceptance criteria/);
-  passed('A card whose worker wrote its own criteria is marked for the reviewer');
+  // and the detail view says it in words, without a hover: who wrote the bar, and what the reviewer should do about it
+  assert.match(await page.locator('.detail-facts').innerText(),/criteria written by/i);
+  assert.equal(await page.locator('#task-body .own-criteria-note').count(),1);
+  assert.match(await page.locator('#task-body .own-criteria-note').innerText(),/wrote these acceptance criteria and is also doing the work/);
   assert.equal(await page.getByRole('button',{name:'Recover expired claim',exact:true}).count(),0);
   assert(!(await page.locator('#task-body').innerText()).includes('1970'));
   for (let i=0;i<2;i++) {
@@ -157,6 +160,10 @@ function findLeaks({scope, ignore}) {
   passed('Unicode owner claims, uploads and conversation records retain content');
   assert(await page.locator('a[href*="/api/tasks/artifact?"]').count() >= 1);
   await act('Send to review');await act('Finish work → Post validation');
+  // waiting for review, the note moves into the review form, where the decision is made, and is said only once
+  assert.equal(await page.locator('#task-body .own-criteria-note').count(),1);
+  assert.equal(await page.locator('.validation-section .own-criteria-note').count(),1);
+  passed('A card whose worker wrote its own criteria is marked for the reviewer, on the card and in its detail and review form');
   const fillValidation = async failPrinciple => {
     const section=page.locator('.validation-section');
     await section.locator('[name="validation_summary"]').fill(failPrinciple?'Idle flashing violates the binding principle':'Replayed output meets all goals and principles');
